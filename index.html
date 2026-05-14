@@ -1,2373 +1,1328 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="VFR Flight">
-<meta name="theme-color" content="#000000">
-<link rel="apple-touch-icon" href="icon.png">
-<link rel="manifest" href="manifest.json">
-<title>VFR Flight Sim</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-html, body {
-  width: 100%; height: 100%;
-  overflow: hidden;
-  background: #000;
-  font-family: 'Courier New', monospace;
-  -webkit-user-select: none; user-select: none;
-  touch-action: none;
-  position: relative;
-}
-#app {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  overflow: hidden;
-}
-@media (orientation: landscape) {
-  #app { grid-template-columns: 55% 45%; grid-template-rows: 1fr; }
-}
-@media (orientation: portrait) {
-  #app { grid-template-columns: 1fr; grid-template-rows: 55% 45%; }
-}
-#left-panel {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-#left-tabs {
-  display: flex;
-  background: #080808;
-  border-bottom: 1px solid #1e1e1e;
-  flex-shrink: 0;
-}
-#pfd-wrap {
-  position: relative; background: #000; overflow: hidden;
-  flex: 1;
-}
-#pfd { display: block; }
-#right-panel {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-left: 2px solid #1a1a1a;
-}
-@media (orientation: portrait) {
-  #right-panel { border-left: none; border-top: 2px solid #1a1a1a; }
-}
-#page-tabs {
-  display: flex;
-  background: #080808;
-  border-bottom: 1px solid #1e1e1e;
-  flex-shrink: 0;
-}
-.page-tab {
-  flex: 1;
-  background: transparent;
-  border: none;
-  border-right: 1px solid #1e1e1e;
-  color: #555;
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  font-weight: bold;
-  letter-spacing: 1.5px;
-  padding: 9px 4px;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: color 0.15s, background 0.15s;
-}
-.page-tab:last-child { border-right: none; }
-.page-tab.active {
-  color: #00ff88;
-  background: #081808;
-  box-shadow: inset 0 -2px 0 #00ff88;
-}
-.page-content {
-  flex: 1;
-  overflow: hidden;
-  position: relative;
-  min-height: 0;
-}
-.page-hidden { display: none !important; }
-#cdu-wrap {
-  background: #111;
-  overflow: hidden;
-}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KUH-1CG CDU - Ultimate PERF & Vy/VS Integration</title>
+    <style>
+        :root {
+            --bg-dark: #050505;
+            --text-green: #c8ff00; 
+            --text-cyan: #00ffff;
+            --active-blue: #87ceeb;
+            --btn-grad: linear-gradient(to bottom, #444, #111, #000);
+            --border-3d: 1px solid #444;
+        }
 
-.ctrl-bar {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  display: flex;
-  flex-direction: column;
-  background: rgba(0,0,0,0.88);
-  border-top: 1px solid #2a2a2a;
-  z-index: 20;
-}
-.ctrl-sub-row {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-}
-.ctrl-group { display: flex; flex-direction: column; align-items: center; gap: 1px; }
-.ctrl-lbl { color: #bbb; font-size: 10px; letter-spacing: 0.5px; }
-.ctrl-row { display: flex; gap: 2px; }
-.cbtn {
-  background: #1c2c1c; border: 1px solid #2a5a2a; color: #fff;
-  font-size: 14px; width: 34px; height: 28px; cursor: pointer;
-  border-radius: 3px; display: flex; align-items: center; justify-content: center;
-  touch-action: manipulation; -webkit-user-select: none;
-}
-.cbtn:active { background: #2e4a2e; }
+        body {
+            background-color: #222;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; margin: 0; font-family: 'Arial', sans-serif; color: white;
+            user-select: none; touch-action: manipulation;
+            padding: 0;
+            overflow: hidden;
+        }
 
-/* ── Stopwatch ── */
-.sw-group {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  border: 1px solid #2a3a2a; border-radius: 4px; padding: 3px 6px;
-}
-.sw-display {
-  color: #00ff88; font-size: 15px; letter-spacing: 2px;
-  font-family: 'Courier New', monospace; min-width: 76px; text-align: center;
-}
-.sw-btns { display: flex; gap: 3px; }
-.sw-btn {
-  background: #1a2e1a; border: 1px solid #2a6a2a; color: #fff;
-  font-size: 11px; padding: 3px 8px; cursor: pointer; border-radius: 3px;
-  touch-action: manipulation;
-}
-.sw-btn:active { background: #264426; }
-.sw-btn.run { border-color: #00ff88; color: #00ff88; }
+        .cdu-frame { 
+            width: 354px;
+            height: 567px; 
+            background-color: #111; padding: 8px; border-radius: 12px; border: 3px solid #000; 
+            display: flex; flex-direction: column;
+            box-shadow: 0 13px 33px rgba(0,0,0,0.9);
+            transform-origin: center; 
+            flex-shrink: 0;
+        }
+        
+        .touch-display { background-color: var(--bg-dark);
+            flex: 1; display: flex; flex-direction: column; border: 1.5px solid #000; overflow: hidden;
+        }
 
-/* ── BRG Toggle ── */
-.brg-tog-group { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.brg-tog-btns { display: flex; gap: 2px; }
-.brg-tog-btn {
-  background: #1a1a1a; border: 1px solid #333; color: #888;
-  font-size: 10px; padding: 3px 6px; cursor: pointer; border-radius: 2px;
-  touch-action: manipulation; white-space: nowrap; font-family: 'Courier New', monospace;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.brg-tog-btn.brg1-on { background: #0e1e3a; border-color: #44aaff; color: #44aaff; }
-.brg-tog-btn.brg2-on { background: #001a00; border-color: #00cc44; color: #00cc44; }
+        /* Header (CNS Bar) */
+        .header-grid { display: grid;
+            grid-template-columns: 0.9fr 1.2fr 0.8fr 1.2fr 0.8fr; background: #111; padding: 4px; gap: 3px; border-bottom: 1.5px solid #333; height: 63px;
+        }
+        .header-box { background: #0a0a0a; border: 0.7px solid #444; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; position: relative; overflow: hidden; }
+        .header-label { font-size: 6px; color: #888; text-align: center; width: 100%; pointer-events: none; }
+        .freq-act { color: white; font-size: 11px; font-weight: bold; }
+        .freq-stby { color: var(--text-cyan); font-size: 10px; font-weight: bold; }
+        .swap-arrow { font-size: 10px; color: #777; cursor: pointer; padding: 2px; z-index: 10;}
+        .green-ind { color: var(--text-green); font-size: 8px; font-weight: bold; text-align: center; line-height: 1.1; }
 
-/* ── NAV Source ── */
-.nav-src-group { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.nav-src-btns { display: flex; gap: 2px; }
-.nav-src-btn {
-  background: #1a1a2e; border: 1px solid #2a2a5a; color: #ccc;
-  font-size: 11px; padding: 3px 6px; cursor: pointer; border-radius: 2px;
-  touch-action: manipulation; white-space: nowrap;
-}
-.nav-src-btn.active { background: #0e1e3e; border-color: #4488ff; color: #fff; }
-.nav-icao-sel {
-  background: #0e1e2e; border: 1px solid #1a4a6a; color: #fff;
-  font-size: 10px; padding: 1px 3px; border-radius: 2px;
-  font-family: 'Courier New', monospace; width: 70px;
-}
+        /* --- 기능 활성화 버튼 시각적 강조 스타일 --- */
+        .func-active {
+            background: linear-gradient(to bottom, rgba(135, 206, 235, 0.25) 0%, #444 40%, #1a1a1a 100%) !important;
+            border-top: 1px solid rgba(135, 206, 235, 0.6) !important;
+            transition: background 0.1s ease;
+        }
+        .func-active:active {
+            background: linear-gradient(to bottom, rgba(135, 206, 235, 0.4) 0%, #555 40%, #222 100%) !important;
+        }
+        .top-func-btn {
+            background: linear-gradient(to bottom, rgba(135, 206, 235, 0.2) 0%, transparent 80%);
+            transition: background 0.1s ease;
+        }
+        .top-func-btn:active {
+            background: rgba(135, 206, 235, 0.35);
+        }
 
-/* ── RNP ── */
-.rnp-group { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.rnp-btns { display: flex; gap: 2px; }
-.rnp-btn {
-  background: #1a2a1a; border: 1px solid #2a4a2a; color: #ccc;
-  font-size: 11px; padding: 3px 5px; cursor: pointer; border-radius: 2px;
-  touch-action: manipulation;
-}
-.rnp-btn.active { background: #0e2e0e; border-color: #44aa44; color: #fff; }
+        /* Titles and Sub-headers */
+        .mode-title-bar { background: linear-gradient(to bottom, #555, #111);
+            text-align: center; padding: 3px; font-size: 9px; font-weight: bold; border-bottom: 1px solid #000; color: #eee;
+        }
+        .sub-header { display: flex; align-items: flex-end; padding: 4px 7px 0 7px;
+            gap: 5px; background: #1a1a1a; }
+        .user-3d-btn { height: 37px; background: var(--btn-grad);
+            border: var(--border-3d); border-radius: 4px 4px 0 0; font-size: 7px; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0 5px;
+        }
+        
+        .tab-container { display: flex; flex: 1; gap: 3px; }
+        .tab { flex: 1; height: 30px; background: #2c2c2c; border: 0.7px solid #444;
+            border-radius: 4px 4px 0 0; display: flex; align-items: center; justify-content: center; font-size: 7px; cursor: pointer; color: #aaa;
+        }
+        .tab.active { background: #eee; color: black; font-weight: bold; height: 32px; margin-top: -2px; }
 
-/* ── divider ── */
-.ctrl-div { width: 1px; height: 34px; background: #2a2a2a; margin: 0 2px; }
+        /* Main Content */
+        #mainContentArea { flex: 1; display: flex; flex-direction: column; padding: 7px; overflow-y: auto; }
+        .panel-border { flex: 1; border: 1.5px solid var(--active-blue); border-radius: 5px; padding: 8px; background: black; display: flex; flex-direction: column; }
 
-/* ── NAV Autopilot button ── */
-.nav-ap-group { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.nav-ap-btn {
-  background: #111; border: 1px solid #333; color: #555;
-  font-size: 11px; font-weight: bold; padding: 5px 10px;
-  border-radius: 3px; cursor: pointer; touch-action: manipulation;
-  letter-spacing: 1px; transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.nav-ap-btn:active { background: #1a2a1a; }
-.nav-ap-btn.on {
-  background: #0a2a0a; border-color: #00cc44; color: #00ff88;
-  box-shadow: 0 0 6px rgba(0,200,80,0.5);
-}
-.nav-ap-btn.armed {
-  background: #1a0e00; border-color: #ff8800; color: #ff8800;
-  box-shadow: 0 0 6px rgba(255,136,0,0.4);
-}
-/* ── OBS button ── */
-.obs-btn {
-  background: #111; border: 1px solid #333; color: #555;
-  font-size: 11px; font-weight: bold; padding: 5px 10px;
-  border-radius: 3px; cursor: pointer; touch-action: manipulation;
-  letter-spacing: 1px; transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.obs-btn:active { background: #1a1a0a; }
-.obs-btn.on {
-  background: #1a1a00; border-color: #ffcc00; color: #ffee44;
-  box-shadow: 0 0 6px rgba(255,200,0,0.4);
-}
+        /* Common Buttons with enhanced active states for touch feedback */
+        .item-btn { height: 35px; background: var(--btn-grad); border: var(--border-3d);
+            color: white; font-size: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; border-radius: 4px; position: relative; text-align: center;
+            transition: transform 0.05s, background 0.1s;
+        }
+        .item-btn:active {
+            background: linear-gradient(to bottom, #555, #222, #111); 
+            transform: scale(0.96);
+        }
+        .status-line { position: absolute; bottom: 3px; width: 70%; height: 2px; background: #333; border-radius: 1.5px; }
+        .on .status-line { background: var(--text-green); box-shadow: 0 0 3px var(--text-green); }
 
-/* ── Map area ── */
-#map-wrap {
-  position: relative; overflow: hidden;
-  flex: 1;
-}
-#map { width: 100%; height: 100%; transform-origin: center center; }
-#orient-btn {
-  position: absolute; top: 8px; right: 136px; z-index: 1000;
-  background: rgba(20,20,20,0.88); border: 1px solid #444; color: #fff;
-  font-family: 'Courier New', monospace; font-size: 12px; font-weight: bold;
-  padding: 7px 12px; border-radius: 5px; cursor: pointer;
-  touch-action: manipulation; letter-spacing: 0.5px;
-  transition: background 0.2s, border-color 0.2s;
-}
-#orient-btn.hdg-up {
-  background: rgba(40,20,0,0.92); border-color: #ff8844; color: #ffaa66;
-  box-shadow: 0 0 8px rgba(255,136,68,0.4);
-}
-#map-sim-bar {
-  position: absolute; bottom: 0; left: 0; right: 0; z-index: 1000;
-  display: flex; gap: 4px; padding: 5px 8px;
-  background: rgba(0,0,0,0.82); border-top: 1px solid #2a2a2a;
-}
-#map-sim-bar .sim-btn { flex: 1; }
-#layer-btn {
-  position: absolute; top: 8px; right: 72px; z-index: 1000;
-  background: rgba(20,20,20,0.88); border: 1px solid #444; color: #fff;
-  font-family: 'Courier New', monospace; font-size: 12px; font-weight: bold;
-  padding: 7px 12px; border-radius: 5px; cursor: pointer;
-  touch-action: manipulation; letter-spacing: 0.5px;
-  transition: background 0.2s, border-color 0.2s;
-}
-#layer-btn.sat {
-  background: rgba(0,20,60,0.92); border-color: #4488ff; color: #88ccff;
-  box-shadow: 0 0 8px rgba(68,136,255,0.4);
-}
-#gps-btn {
-  position: absolute; top: 8px; right: 8px; z-index: 1000;
-  background: rgba(20,20,20,0.88); border: 1px solid #444; color: #fff;
-  font-family: 'Courier New', monospace; font-size: 12px; font-weight: bold;
-  padding: 7px 12px; border-radius: 5px; cursor: pointer;
-  touch-action: manipulation; letter-spacing: 0.5px;
-  transition: background 0.2s, border-color 0.2s;
-}
-#gps-btn.active {
-  background: rgba(0,40,0,0.92); border-color: #00dd44; color: #00ff88;
-  box-shadow: 0 0 8px rgba(0,220,80,0.4);
-}
-#gps-status {
-  position: absolute; top: 44px; right: 8px; z-index: 1000;
-  background: rgba(0,20,0,0.80); border: 1px solid #226622; color: #00cc66;
-  font-family: 'Courier New', monospace; font-size: 9px;
-  padding: 3px 7px; border-radius: 3px; display: none;
-  max-width: 210px; text-align: right; line-height: 1.5;
-}
+        /* Sliders */
+        .volume-row { display: grid; grid-template-columns: 50px 43px 1fr 63px; align-items: center; margin-bottom: 7px; gap: 5px; }
+        .wedge-slider { height: 28px; background: #111; border: 0.7px solid #444; position: relative; overflow: hidden; cursor: ew-resize; border-radius: 3px; }
+        .wedge-fill { height: 100%; background: linear-gradient(to right, #1a3a4a, #00d2ff); clip-path: polygon(0% 100%, 100% 0%, 100% 100%); pointer-events: none; }
+        .wedge-text { position: absolute; left: 7px; top: 8px; font-size: 8px; color: var(--active-blue); font-weight: bold; z-index: 3; pointer-events: none; }
 
-/* ── Flight Plan (Garmin CDU Style) ── */
-#fp-wrap {
-  background: #050505;
-  display: flex; flex-direction: column;
-  overflow: hidden;
-  font-family: 'Arial', sans-serif;
-  color: white;
-}
-.fp-mode-title {
-  background: linear-gradient(to bottom, #555, #111);
-  text-align: center; padding: 4px 8px;
-  font-size: 9px; font-weight: bold; letter-spacing: 1px;
-  border-bottom: 1px solid #000; color: #eee; flex-shrink: 0;
-}
-.fp-content-area {
-  flex: 1; display: flex; flex-direction: column;
-  padding: 6px; overflow-y: auto; gap: 5px; min-height: 0;
-}
-.fp-panel-border {
-  border: 1.5px solid #87ceeb; border-radius: 5px;
-  padding: 6px; background: #000;
-  display: flex; flex-direction: column; overflow-y: auto; gap: 3px;
-}
-.fp-nav-box {
-  background: #080808; border-top: 1px solid #1a1a1a;
-  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;
-  padding: 3px; flex-shrink: 0;
-}
-.nav-cell { text-align: center; }
-.nav-lbl { color: #87ceeb; font-size: 7px; font-weight: bold; letter-spacing: 0.5px; }
-.nav-val { font-size: 11px; font-weight: bold; font-family: monospace; }
-.brg1-val { color: #44aaff; }
-.brg2-val { color: #00cc44; }
-.crs-val  { color: #c8ff00; }
-.dtw-val  { color: #00ffff; }
-.fp-footer-nav {
-  height: 50px; display: flex; justify-content: space-around;
-  align-items: center; background: #111;
-  border-top: 1.5px solid #333; padding: 0 3px; flex-shrink: 0;
-}
-.fp-nav-btn {
-  background: linear-gradient(to bottom, #444, #111, #000);
-  border: 1px solid #444; border-radius: 5px;
-  padding: 5px 2px; flex: 1; max-width: 68px;
-  display: flex; flex-direction: column;
-  align-items: center; gap: 2px;
-  cursor: pointer; font-size: 7px; color: white;
-  touch-action: manipulation; transition: transform 0.05s;
-  text-align: center; line-height: 1.2; margin: 0 2px;
-}
-.fp-nav-btn:active { background: linear-gradient(to bottom, #555, #222, #111); transform: scale(0.95); }
-.fp-nav-btn span { font-size: 13px; pointer-events: none; }
-.fp-nav-btn.fp-nav-enter { background: #1a2a4a; border-color: #87ceeb; }
-.fp-nav-btn.fp-nav-active { background: linear-gradient(to bottom, #0e2a0e, #050d05); border-color: #00cc00; color: #00ff88; }
-.fp-wp-row {
-  display: grid;
-  grid-template-columns: 18px 1fr 34px 38px 26px 26px;
-  align-items: center; gap: 2px;
-  padding: 5px 4px; border-bottom: 1px solid #0e0e0e;
-  cursor: pointer; touch-action: manipulation;
-}
-.fp-wp-row:active { background: #0a1510; }
-.fp-wp-row.active-wp { background: #081a08; border-left: 3px solid #00ff88; }
-.fp-wp-row.brg2-wp  { border-right: 3px solid #87ceeb; }
-.fp-wp-seq { color: #333; font-size: 8px; }
-.fp-wp-ident { color: #fff; font-weight: bold; font-size: 12px; }
-.fp-wp-hdg { color: #c8ff00; font-size: 10px; font-weight: bold; text-align: right; font-family: monospace; }
-.fp-wp-dist { color: #00ffff; font-size: 10px; text-align: right; font-family: monospace; }
-.fp-wp-b2 {
-  background: transparent; border: 1px solid #2a2a2a; color: #555;
-  width: 24px; height: 22px; font-size: 8px; font-weight: bold;
-  cursor: pointer; border-radius: 2px;
-  display: flex; align-items: center; justify-content: center; touch-action: manipulation;
-}
-.fp-wp-b2.active { border-color: #87ceeb; color: #87ceeb; background: #0a1525; }
-.fp-wp-del {
-  background: transparent; border: 1px solid #442222; color: #cc4444;
-  width: 24px; height: 22px; font-size: 11px; cursor: pointer; border-radius: 2px;
-  display: flex; align-items: center; justify-content: center; touch-action: manipulation;
-}
-.fp-section-hdr {
-  display: flex; align-items: center; gap: 5px;
-  padding: 4px 4px; background: #0c1520;
-  border-bottom: 1px solid #1a2a3a;
-  color: #87ceeb; font-size: 8px; font-weight: bold; letter-spacing: 0.5px;
-}
-.fp-empty-state {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 8px; padding: 16px 8px; flex: 1;
-}
-.fp-empty-label { color: #2a4a3a; font-size: 8px; letter-spacing: 1px; margin-bottom: 4px; }
-.fp-empty-btn {
-  width: 100%; padding: 10px;
-  background: linear-gradient(to bottom, #1a2a3a, #0a1520);
-  border: 1.5px solid #2a4a6a; border-radius: 5px;
-  color: #87ceeb; font-size: 10px; font-weight: bold;
-  text-align: center; cursor: pointer; touch-action: manipulation;
-  letter-spacing: 0.5px;
-}
-.fp-empty-btn:active { background: #1a2a4a; }
-.fp-ap-grid { display: flex; flex-wrap: wrap; gap: 4px; }
-.fp-ap-btn {
-  background: linear-gradient(to bottom, #1a2a3a, #0a1520);
-  border: 1px solid #2a4a6a; color: #00ffff;
-  padding: 6px 4px; font-size: 11px; cursor: pointer;
-  border-radius: 4px; touch-action: manipulation;
-  font-weight: bold; min-width: 42px; text-align: center; flex: 1;
-}
-.fp-ap-btn:active { background: #0a1a2a; }
-.fp-input-type-btn {
-  height: 48px;
-  background: linear-gradient(to bottom, #444, #111, #000);
-  border: 1px solid #444; border-radius: 4px;
-  color: #fff; font-size: 10px; font-weight: bold;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 2px;
-  cursor: pointer; touch-action: manipulation;
-  transition: transform 0.05s;
-}
-.fp-input-type-btn:active { transform: scale(0.95); background: linear-gradient(to bottom, #555, #222, #111); }
-.fp-input-type-btn.fp-cyan { border-color: #87ceeb; color: #87ceeb; }
-.fp-disp-box {
-  flex: 1; height: 42px;
-  background: #000; border: 1.5px solid #555; border-radius: 4px;
-  color: #c8ff00; font-size: 20px; font-weight: bold;
-  display: flex; align-items: center; justify-content: center;
-  font-family: monospace; letter-spacing: 2px; padding: 0 10px;
-}
-.fp-disp-cursor { font-size: 16px; color: #87ceeb; animation: fp-blink 0.9s step-start infinite; }
-@keyframes fp-blink { 50% { opacity: 0; } }
-.fp-key-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
-.fp-key {
-  height: 44px;   /* CDU item-btn 높이 수준 */
-  background: radial-gradient(circle at 30% 30%, #444, #111);
-  border: 0.7px solid #555; border-radius: 5px;
-  color: white; font-size: 15px; font-weight: bold;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; touch-action: manipulation;
-  transition: transform 0.05s;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-}
-.fp-key:active { background: radial-gradient(circle at 30% 30%, #666, #222); transform: scale(0.92); }
-.fp-numpad-grid { display: grid; grid-template-columns: repeat(3, 44px); gap: 8px; justify-content: center; margin: 6px auto; }
-.fp-num-circ {
-  width: 42px; height: 42px;
-  background: radial-gradient(circle at 30% 30%, #444, #111);
-  border: 0.7px solid #555; border-radius: 50%;
-  color: white; font-size: 16px; font-weight: bold;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; touch-action: manipulation;
-  box-shadow: 0 3px 5px rgba(0,0,0,0.6);
-  transition: transform 0.05s;
-}
-.fp-num-circ:active { background: radial-gradient(circle at 30% 30%, #666, #222); transform: scale(0.95); box-shadow: inset 0 3px 6px rgba(0,0,0,0.8); }
-.fp-bksp-btn {
-  flex-shrink: 0; width: 42px; height: 42px;
-  background: linear-gradient(to bottom, #444, #111, #000);
-  border: 0.7px solid #555; border-radius: 6px;
-  color: white; font-size: 9px; font-weight: bold;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  cursor: pointer; touch-action: manipulation;
-}
-.fp-bksp-btn:active { background: linear-gradient(to bottom, #555, #222, #111); }
-.fp-ifr-tab-row { display: flex; gap: 3px; margin-bottom: 5px; }
-.fp-ifr-tab {
-  flex: 1; height: 30px;
-  background: #2c2c2c; border: 0.7px solid #444;
-  border-radius: 4px 4px 0 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 8px; cursor: pointer; color: #aaa; touch-action: manipulation;
-}
-.fp-ifr-tab.active { background: #eee; color: black; font-weight: bold; }
-.fp-ifr-sel {
-  background: #0a0a0a; border: 1px solid #1a5a1a; color: #c8ff00;
-  padding: 6px; font-size: 11px; border-radius: 3px; width: 100%;
-  font-family: monospace;
-}
-.fp-ifr-lbl { color: #87ceeb; font-size: 8px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: bold; margin-top: 4px; }
-.fp-ifr-add {
-  background: linear-gradient(to bottom, #1a3a1a, #0a1a0a);
-  border: 1px solid #2a6a2a; color: #00ff88;
-  padding: 8px; font-size: 10px; cursor: pointer; border-radius: 4px;
-  font-weight: bold; text-align: center; touch-action: manipulation;
-  margin-top: 6px;
-}
-.fp-ifr-add:active { background: #0e1a0e; }
-.fp-phase-badge {
-  font-size: 7px; padding: 0 2px; border-radius: 2px;
-  vertical-align: middle; margin-right: 2px; font-weight: bold; display: inline-block;
-}
-.badge-dep { background: #0d280d; color: #00cc44; border: 1px solid #226622; }
-.badge-enr { background: #0d1a2e; color: #4488ff; border: 1px solid #224466; }
-.badge-app { background: #2e1a0d; color: #ff8844; border: 1px solid #664422; }
-.sim-btn.on { background: linear-gradient(to bottom, #0e2a0e, #050d05, #000); border-color: #00cc00; color: #00ee00; }
-.sim-btn {
-  flex: 1; background: linear-gradient(to bottom, #333, #111, #000);
-  border: 1px solid #444; color: #fff;
-  padding: 6px; font-size: 10px; cursor: pointer; border-radius: 4px;
-  text-align: center; touch-action: manipulation; font-weight: bold;
-}
-.sim-btn:active { background: linear-gradient(to bottom, #555, #222, #111); }
-.sim-btn.clr { border-color: #552222; color: #ee7777; }
-.ac-marker svg { display: block; }
-</style>
+        /* Audio Radios */
+        .freq-display-box { height: 35px; background: #0a0a0a; border: 0.7px solid #444; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; padding-right: 5px; border-radius: 4px; cursor: pointer; transition: background 0.1s; }
+        .freq-display-box:active { background: #1a1a1a; }
+
+        /* Intercom Grid */
+        .intercom-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 5px; }
+        .loop-row { display: flex; gap: 8px; margin-top: 10px; }
+
+        /* Numpad with optimized touch targets */
+        .input-row { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 10px 0 20px 0; }
+        .freq-box-main { width: 120px; height: 40px; background: #000; border: 1.5px solid #555; border-radius: 4px; color: var(--text-green); font-size: 22px; display: flex; align-items: center; justify-content: center; font-family: monospace; }
+        .numpad-grid { display: grid; grid-template-columns: repeat(3, 65px); gap: 12px; justify-content: center; }
+        .xpdr-numpad-grid { display: grid; grid-template-columns: repeat(4, 55px); gap: 10px; justify-content: center; margin-bottom: 15px;}
+        .selcal-grid { display: grid; grid-template-columns: repeat(5, 45px); gap: 8px; justify-content: center; }
+        
+        .num-circle { 
+            width: 55px; height: 55px; /* Increased touch target */
+            background: radial-gradient(circle at 30% 30%, #444, #111); border: 0.7px solid #555; border-radius: 50%; color: white; font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 3px 5px rgba(0,0,0,0.6); 
+            transition: transform 0.05s, background 0.1s;
+        }
+        .num-circle:active {
+            background: radial-gradient(circle at 30% 30%, #666, #222);
+            box-shadow: inset 0 3px 6px rgba(0,0,0,0.8);
+            transform: scale(0.95);
+        }
+
+        /* Footer */
+        .footer-nav { height: 53px; display: flex; justify-content: space-around; align-items: center; background: #111; border-top: 1.5px solid #333; padding: 0 5px; }
+        .nav-btn { background: var(--btn-grad); border: var(--border-3d); border-radius: 5px; padding: 6px; min-width: 45px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; font-size: 7px; color: white; transition: transform 0.05s, background 0.1s; }
+        .nav-btn:active { background: linear-gradient(to bottom, #555, #222, #111); transform: scale(0.95); }
+        .nav-btn span { font-size: 14px; pointer-events: none; }
+        .enter-btn-blue { background: #1a2a4a; border: 1px solid var(--active-blue); }
+        .enter-btn-blue:active { background: #2a4a7a; }
+
+        .status-footer { height: 25px; background: #111; display: grid; grid-template-columns: 1fr 1.5fr 1fr; border-top: 0.7px solid #333; font-size: 6px; color: #ccc; align-items: center; padding: 0 7px; text-align: center; }
+        
+        /* Home Grid */
+        .home-grid { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 15px 5px; padding: 5px; }
+        .home-icon-wrapper { width: 23%; display: flex; flex-direction: column; align-items: center; cursor: pointer; text-decoration: none; color: inherit; }
+        .icon-box { width: 45px; height: 45px; background: linear-gradient(to bottom, #444, #1a1a1a); border-radius: 8px; border: 1px solid #555; display: flex; align-items: center; justify-content: center; margin-bottom: 5px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.6); transition: transform 0.05s; }
+        .icon-box:active { transform: scale(0.92); }
+        .icon-box svg { width: 70%; height: 70%; }
+        .icon-label { font-size: 8px; color: #eee; text-align: center; font-weight: bold; line-height: 1.1; pointer-events: none; }
+        
+        /* PERF Page Styles */
+        .perf-row { display: flex; justify-content: space-between; margin-bottom: 12px; align-items: center; }
+        .perf-label { font-size: 8px; color: #ccc; margin-bottom: 2px; }
+        .perf-val-box { border: 1px solid var(--active-blue); background: #000; padding: 4px 8px; border-radius: 4px; color: var(--text-green); font-size: 12px; font-weight: bold; min-width: 50px; text-align: center; cursor: pointer; transition: background 0.1s; }
+        .perf-val-box:active { background: #222; }
+        .perf-result-box { background: #1a1a1a; border: 1px solid #555; padding: 3px 2px; border-radius: 4px; color: white; font-size: 11px; font-weight: bold; min-width: 45px; text-align: center; display: flex; align-items: center; justify-content: center; }
+        .perf-result-title { font-size: 6.5px; color: var(--text-cyan); text-align: center; margin-bottom: 2px; line-height: 1.1; }
+        
+        /* Error/Warning Animation */
+        @keyframes blink { 50% { opacity: 0.4; } }
+    </style>
 </head>
 <body>
-<div id="app">
 
-  <!-- ── LEFT PANEL (PFD / MAP) ── -->
-  <div id="left-panel">
-    <div id="left-tabs">
-      <button class="page-tab active" onclick="setLeftPage(0)">PFD</button>
-      <button class="page-tab" onclick="setLeftPage(1)">MAP</button>
+<div class="cdu-frame">
+    <div class="touch-display">
+        
+        <div class="header-grid">
+            <div class="header-box" style="padding:0; gap:0;">
+                <div class="top-func-btn" style="flex:1; width:100%; display:flex; align-items:center; justify-content:center; cursor:pointer;" onclick="switchMode('AUDIO'); switchAudioTab('COM');">
+                    <div class="header-label" style="line-height:1.2;">Audio &<br>Radios</div>
+                </div>
+                <div style="width:80%; height:1px; background:#333;"></div>
+                <div class="top-func-btn" style="flex:1; width:100%; display:flex; align-items:center; justify-content:center; cursor:pointer;" onclick="switchMode('INTERCOM')">
+                    <div class="header-label">Intercom</div>
+                </div>
+            </div>
+
+            <div class="header-box">
+                <div class="header-label">COM1</div>
+                <div class="freq-act" id="h-com1-act">133.30</div>
+                <div class="swap-arrow" onclick="swapFreq('com1')">↕</div>
+                <div class="freq-stby" id="h-com1-stb">121.90</div>
+            </div>
+            
+            <div class="header-box">
+                <div class="header-label" style="margin-bottom:2px;">MIC</div>
+                <div class="green-ind" id="top-mic-val">COM1</div>
+                <div class="header-label" style="margin-top:2px; margin-bottom:2px;">MON</div>
+                <div class="green-ind" id="top-mon-val">1/2</div>
+            </div>
+            
+            <div class="header-box">
+                <div class="header-label">COM2</div>
+                <div class="freq-act" id="h-com2-act">128.20</div>
+                <div class="swap-arrow" onclick="swapFreq('com2')">↕</div>
+                <div class="freq-stby" id="h-com2-stb">118.20</div>
+            </div>
+            
+            <div class="header-box" style="padding:0; gap:0;">
+                <div style="flex:1; width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer;" onclick="switchMode('XPDR_MODE')">
+                    <div class="header-label" style="color:var(--text-cyan); margin-bottom:1px;">XPDR2</div>
+                    <div class="green-ind" id="top-xpdr-mode">AUTO</div>
+                </div>
+                <div style="width:80%; height:1px; background:#333;"></div>
+                <div style="flex:1; width:100%; display:flex; align-items:center; justify-content:center; cursor:pointer;" onclick="switchMode('XPDR_CODE')">
+                    <div class="freq-act" id="top-xpdr-code" style="color:var(--text-green); font-size:12px;">1234</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mode-title-bar" id="modeTitle">Home</div>
+        <div id="mainContentArea"></div>
+        <div class="footer-nav" id="footerNav"></div>
+        
+        <div class="status-footer">
+            <div style="text-align:left;">- Range +<br>Push:Pan</div>
+            <div id="center-label">CDU HOME</div>
+            <div style="text-align:right;">COM1 FREQ<br>Hold:↕</div>
+        </div>
     </div>
-    <div id="pfd-wrap">
-    <canvas id="pfd"></canvas>
-    <div class="ctrl-bar">
-
-      <!-- 1행: SPD / HDG / CRS / ALT / 스톱워치 -->
-      <div class="ctrl-sub-row">
-
-        <div class="ctrl-group">
-          <div class="ctrl-lbl">SPD</div>
-          <div class="ctrl-row">
-            <button class="cbtn" id="spd-dn">▼</button>
-            <button class="cbtn" id="spd-up">▲</button>
-          </div>
-        </div>
-
-        <div class="ctrl-group">
-          <div class="ctrl-lbl">HDG</div>
-          <div class="ctrl-row">
-            <button class="cbtn" id="hdg-dn">◄</button>
-            <button class="cbtn" id="hdg-up">►</button>
-          </div>
-        </div>
-
-        <div class="ctrl-group">
-          <div class="ctrl-lbl">CRS</div>
-          <div class="ctrl-row">
-            <button class="cbtn" id="crs-dn">◄</button>
-            <button class="cbtn" id="crs-up">►</button>
-          </div>
-        </div>
-
-        <div class="ctrl-group">
-          <div class="ctrl-lbl">ALT</div>
-          <div class="ctrl-row">
-            <button class="cbtn" id="alt-dn">▼</button>
-            <button class="cbtn" id="alt-up">▲</button>
-          </div>
-        </div>
-
-        <div class="ctrl-div"></div>
-
-        <div class="sw-group">
-          <div class="sw-display" id="sw-display">00:00.0</div>
-          <div class="sw-btns">
-            <button class="sw-btn" id="sw-toggle" onclick="swToggle()">GO</button>
-            <button class="sw-btn" onclick="swReset()">RESET</button>
-          </div>
-        </div>
-
-      </div><!-- end ctrl-sub-row 1 -->
-
-      <!-- 2행: NAV AP / BRG TOGGLE / NAV SOURCE / RNP -->
-      <div class="ctrl-sub-row" style="border-top:1px solid #1e1e1e;">
-
-        <div class="nav-ap-group">
-          <div class="ctrl-lbl">AP</div>
-          <div style="display:flex;gap:4px;align-items:center;">
-            <button class="obs-btn" id="obs-btn" onclick="toggleObs()">OBS</button>
-            <button class="nav-ap-btn" id="nav-ap-btn" onclick="toggleNavAp()">NAV</button>
-          </div>
-        </div>
-
-        <div class="ctrl-div"></div>
-
-        <div class="brg-tog-group">
-          <div class="ctrl-lbl">BRG</div>
-          <div class="brg-tog-btns">
-            <button class="brg-tog-btn brg1-on" id="brg1-tog" onclick="toggleBrg1()">BRG1</button>
-            <button class="brg-tog-btn brg2-on" id="brg2-tog" onclick="toggleBrg2()">BRG2</button>
-          </div>
-        </div>
-
-        <div class="ctrl-div"></div>
-
-        <div class="nav-src-group">
-          <div class="ctrl-lbl">NAV SRC</div>
-          <div class="nav-src-btns">
-            <button class="nav-src-btn active" id="nav-fms" onclick="setNavSrc('FMS')">FMS</button>
-            <button class="nav-src-btn" id="nav-vor" onclick="setNavSrc('VOR')">VOR</button>
-            <button class="nav-src-btn" id="nav-loc" onclick="setNavSrc('LOC')">LOC</button>
-          </div>
-          <select class="nav-icao-sel" id="nav-icao-sel" onchange="setNavIcao(this.value)" style="display:none"></select>
-        </div>
-
-        <div class="ctrl-div"></div>
-
-        <div class="rnp-group">
-          <div class="ctrl-lbl">RNP</div>
-          <div class="rnp-btns">
-            <button class="rnp-btn" id="rnp-4" onclick="setRnp(4)">4</button>
-            <button class="rnp-btn" id="rnp-2" onclick="setRnp(2)">2</button>
-            <button class="rnp-btn active" id="rnp-1" onclick="setRnp(1)">1</button>
-            <button class="rnp-btn" id="rnp-03" onclick="setRnp(0.3)">0.3</button>
-          </div>
-        </div>
-
-      </div><!-- end ctrl-sub-row 2 -->
-
-    </div>
-    </div><!-- end #pfd-wrap -->
-  </div><!-- end #left-panel -->
-
-  <!-- ── RIGHT PANEL (3 pages) ── -->
-  <div id="right-panel">
-
-    <div id="page-tabs">
-      <button class="page-tab active" onclick="setPage(0)">MAP</button>
-      <button class="page-tab" onclick="setPage(1)">PLAN</button>
-      <button class="page-tab" onclick="setPage(2)">CDU</button>
-    </div>
-
-    <!-- Page 1: Map -->
-    <div id="map-wrap" class="page-content">
-      <div id="map"></div>
-      <button id="orient-btn" onclick="toggleMapOrient()">N↑</button>
-      <button id="layer-btn" onclick="toggleLayer()">SAT</button>
-      <button id="gps-btn" onclick="toggleGPS()">GPS</button>
-      <div id="gps-status"></div>
-      <div id="map-sim-bar">
-        <button class="sim-btn" id="map-fly-btn" onclick="toggleSim()">▶ FLY</button>
-        <button class="sim-btn" onclick="resetSim()">⟳ RESET</button>
-        <button class="sim-btn clr" onclick="clearFP()">✕ CLR</button>
-      </div>
-    </div>
-
-    <!-- Page 2: Flight Plan -->
-    <div id="fp-wrap" class="page-content page-hidden">
-      <div class="fp-mode-title" id="fp-mode-title">ACTIVE FLIGHT PLAN</div>
-      <div class="fp-content-area" id="fp-content-area"></div>
-      <div class="fp-nav-box">
-        <div class="nav-cell"><div class="nav-lbl">BRG1</div><div class="nav-val brg1-val" id="nav-brg1">---°</div></div>
-        <div class="nav-cell"><div class="nav-lbl">BRG2</div><div class="nav-val brg2-val" id="nav-brg2">---°</div></div>
-        <div class="nav-cell"><div class="nav-lbl">CRS</div><div class="nav-val crs-val" id="nav-crs">---°</div></div>
-        <div class="nav-cell"><div class="nav-lbl">DTW</div><div class="nav-val dtw-val" id="nav-dtw">---NM</div></div>
-      </div>
-      <div class="fp-footer-nav" id="fp-footer-nav"></div>
-    </div>
-
-    <!-- Page 3: CDU -->
-    <div id="cdu-wrap" class="page-content page-hidden">
-      <iframe id="cdu-iframe" src="./Garmin%20CDU/index.html" style="width:100%;height:100%;border:none;" scrolling="no"></iframe>
-    </div>
-
-  </div><!-- end #right-panel -->
-</div><!-- end #app -->
+</div>
 
 <script>
-// ══════════════════════════════════════════════════════
-// DATABASE
-// ══════════════════════════════════════════════════════
-const AIRPORTS = [
-  { ident:'RKSI', name:'인천국제', lat:37.4602, lon:126.4407 },
-  { ident:'RKSS', name:'김포',     lat:37.5583, lon:126.7942 },
-  { ident:'RKPK', name:'김해',     lat:35.1795, lon:128.9382 },
-  { ident:'RKPC', name:'제주',     lat:33.5113, lon:126.4930 },
-  { ident:'RKTU', name:'청주',     lat:36.7166, lon:127.4990 },
-  { ident:'RKJJ', name:'광주',     lat:35.1233, lon:126.8088 },
-  { ident:'RKJK', name:'군산',     lat:35.9038, lon:126.6159 },
-  { ident:'RKJY', name:'여수',     lat:34.8423, lon:127.6170 },
-  { ident:'RKJB', name:'무안',     lat:34.9914, lon:126.3829 },
-  { ident:'RKTL', name:'사천',     lat:35.0886, lon:128.0703 },
-  { ident:'RKTH', name:'포항경주', lat:35.9878, lon:129.4201 },
-  { ident:'RKDU', name:'울산',     lat:35.5934, lon:129.3520 },
-  { ident:'RKNN', name:'강릉',     lat:37.7537, lon:128.9437 },
-  { ident:'RKNY', name:'양양',     lat:38.0613, lon:128.6693 },
-  { ident:'RKNS', name:'속초',     lat:38.1427, lon:128.5986 },
-];
-
-// ══════════════════════════════════════════════════════
-// STATE
-// ══════════════════════════════════════════════════════
-const S = {
-  lat: 37.4602, lon: 126.4407,
-  hdg: 360,
-  spd: 120,   // knots  (baseline for pitch = 120 kt)
-  alt: 3000,  // feet
-  pit: 0,     // pitch  — auto-derived from speed: (120−spd)×3/20
-  bnk: 0,     // bank   — driven by HDG button; returns to 0 on release
-  crs: 360,
-  brg: 0,     // BRG1: bearing to active (TO) WP
-  brg2: 0,    // BRG2: bearing to user-selected WP
-  xtk: 0,
-  dtw: 0,     // dist to active WP
-  dtw2: 0,    // dist to BRG2 WP
-  wps: [], awp: -1, fwp: -1, brg2wp: -1,
-  running: false, lastT: null, trail: [],
-};
-
-// bankTarget: goal bank angle; smoothed each frame
-let bankTarget = 0;
-
-// BRG needle visibility
-let brg1Visible = true;
-let brg2Visible = true;
-
-function toggleBrg1() {
-  brg1Visible = !brg1Visible;
-  const btn = document.getElementById('brg1-tog');
-  btn.classList.toggle('brg1-on', brg1Visible);
-}
-function toggleBrg2() {
-  brg2Visible = !brg2Visible;
-  const btn = document.getElementById('brg2-tog');
-  btn.classList.toggle('brg2-on', brg2Visible);
-}
-
-// ── OBS (Omni Bearing Selector) ──
-let obsOn = false;
-let vorObsCrs = 360; // VOR/LOC 전용 OBS 코스 — S.crs(FMS) 와 완전 분리
-
-// 현재 navSrc 에 맞는 활성 코스 반환
-function activeCrs() {
-  return (navSrc === 'VOR' || navSrc === 'LOC') ? vorObsCrs : S.crs;
-}
-
-// CRS 버튼 활성/비활성: VOR/LOC 는 항상 활성, FMS 는 OBS ON 일 때만
-function updateCrsButtons() {
-  const enabled = obsOn || navSrc === 'VOR' || navSrc === 'LOC';
-  ['crs-dn', 'crs-up'].forEach(id => {
-    const el = document.getElementById(id);
-    el.disabled = !enabled;
-    el.style.opacity = enabled ? '1' : '0.3';
-  });
-}
-
-function toggleObs() {
-  obsOn = !obsOn;
-  document.getElementById('obs-btn').classList.toggle('on', obsOn);
-  updateCrsButtons();
-}
-
-// Returns true if the aircraft is within the NAV intercept zone:
-//   • lateral: within ±RNP of the selected course line
-//   • angular:  within ±50° of the inbound course at the waypoint
-// Only checked when OBS is on; always true when OBS is off.
-function navInterceptOk() {
-  if (!obsOn) return true;
-  let wpLat, wpLon;
-  if (navSrc === 'FMS') {
-    if (S.awp < 0 || S.awp >= S.wps.length) return false;
-    wpLat = S.wps[S.awp].lat; wpLon = S.wps[S.awp].lon;
-  } else if (navLat !== null) {
-    wpLat = navLat; wpLon = navLon;
-  } else return false;
-
-  const crs = activeCrs();
-  // Angular check (±50° from inbound at waypoint)
-  const brgFromWp  = bearing(wpLat, wpLon, S.lat, S.lon);
-  const angDiff    = normAS(brgFromWp - normA(crs + 180));
-  if (Math.abs(angDiff) > 50) return false;
-
-  // Lateral check (XTK ≤ RNP from selected course line through waypoint)
-  const fromPt = destPoint(wpLat, wpLon, normA(crs + 180), 100);
-  const xtk    = crossTrack(fromPt[0], fromPt[1], wpLat, wpLon, S.lat, S.lon);
-  if (Math.abs(xtk) > rnp) return false;
-
-  return true;
-}
-
-function updateNavBtn() {
-  const btn = document.getElementById('nav-ap-btn');
-  btn.classList.remove('on', 'armed');
-  if (navApOn) {
-    btn.classList.add(navInterceptOk() ? 'on' : 'armed');
-  }
-}
-
-// ── NAV Autopilot ──
-let navApOn = false;
-const navAp = { xtkI: 0, xtkPrev: 0 };
-
-function toggleNavAp() {
-  if (!navApOn) {
-    const fmsOk = navSrc === 'FMS' && S.awp >= 0 && S.awp < S.wps.length;
-    const vorOk = (navSrc === 'VOR' || navSrc === 'LOC') && navLat !== null;
-    if (!fmsOk && !vorOk) return;
-    if (!S.running) return;
-    navApOn = true;
-    navAp.xtkI = 0; navAp.xtkPrev = 0;
-  } else {
-    navApOn = false;
-    bankTarget = 0;
-  }
-  updateNavBtn();
-}
-
-function disengageNavAp() {
-  if (!navApOn) return;
-  navApOn = false;
-  bankTarget = 0;
-  updateNavBtn();
-}
-
-// NAV source state
-let navSrc  = 'FMS';   // 'FMS' | 'VOR' | 'LOC'
-let navIcao = '';      // selected ICAO for VOR/LOC mode
-let navLat  = null, navLon = null;
-let rnp     = 1.0;     // RNP value for FMS CDI scale
-
-// pitch is always derived from speed — helper
-function pitchFromSpd(spd) {
-  return Math.max(-20, Math.min(20, (120 - spd) * (3 / 20)));
-}
-
-// ══════════════════════════════════════════════════════
-// STOPWATCH
-// ══════════════════════════════════════════════════════
-const SW = { running: false, startMs: 0, accMs: 0 };
-
-function swElapsedMs() {
-  return SW.running ? SW.accMs + (Date.now() - SW.startMs) : SW.accMs;
-}
-function swToggle() {
-  if (SW.running) {
-    SW.accMs += Date.now() - SW.startMs;
-    SW.running = false;
-    document.getElementById('sw-toggle').textContent = 'GO';
-    document.getElementById('sw-toggle').classList.remove('run');
-  } else {
-    SW.startMs = Date.now();
-    SW.running = true;
-    document.getElementById('sw-toggle').textContent = 'STP';
-    document.getElementById('sw-toggle').classList.add('run');
-  }
-}
-function swReset() {
-  SW.running = false; SW.accMs = 0;
-  document.getElementById('sw-toggle').textContent = 'GO';
-  document.getElementById('sw-toggle').classList.remove('run');
-  document.getElementById('sw-display').textContent = '00:00.0';
-}
-
-// ── NAV source / ICAO / RNP ──
-function setNavSrc(src) {
-  navSrc = src;
-  document.querySelectorAll('.nav-src-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('nav-' + src.toLowerCase()).classList.add('active');
-  const icaoSel = document.getElementById('nav-icao-sel');
-  const isVorLoc = src === 'VOR' || src === 'LOC';
-  icaoSel.style.display = isVorLoc ? 'block' : 'none';
-  // VOR/LOC: vorObsCrs 초기화 (S.crs/FMS 코스는 건드리지 않음)
-  if (isVorLoc && navLat !== null) {
-    vorObsCrs = normA(Math.round(bearing(S.lat, S.lon, navLat, navLon)));
-  }
-  updateCrsButtons(); // VOR/LOC ↔ FMS 전환 시 버튼 상태 갱신
-  updateNav();
-}
-function setNavIcao(icao) {
-  navIcao = icao;
-  const a = AIRPORTS.find(x => x.ident === icao);
-  if (a) { navLat = a.lat; navLon = a.lon; }
-  else    { navLat = null; navLon = null; }
-  // VOR/LOC 국소 변경 시 vorObsCrs 만 갱신 — S.crs(FMS) 불변
-  if (navLat !== null && (navSrc === 'VOR' || navSrc === 'LOC')) {
-    vorObsCrs = normA(Math.round(bearing(S.lat, S.lon, navLat, navLon)));
-  }
-  updateNav();
-}
-function setRnp(val) {
-  rnp = val;
-  document.querySelectorAll('.rnp-btn').forEach(b => b.classList.remove('active'));
-  const idMap = { 4:'rnp-4', 2:'rnp-2', 1:'rnp-1', 0.3:'rnp-03' };
-  const el = document.getElementById(idMap[val]);
-  if (el) el.classList.add('active');
-}
-function swRender() {
-  const ms  = swElapsedMs();
-  const m   = Math.floor(ms / 60000);
-  const s   = Math.floor((ms % 60000) / 1000);
-  const t   = Math.floor((ms % 1000) / 100);
-  document.getElementById('sw-display').textContent =
-    String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0') + '.' + t;
-}
-
-// ══════════════════════════════════════════════════════
-// MATH
-// ══════════════════════════════════════════════════════
-const D2R = Math.PI / 180;
-const R_NM = 3440.065;
-function normA(a)  { return ((a % 360) + 360) % 360; }
-function normAS(a) { a = normA(a); return a > 180 ? a - 360 : a; }
-function fmtA(a)   { return normA(Math.round(a)).toString().padStart(3,'0'); }
-
-function bearing(la1,lo1,la2,lo2) {
-  const f1=la1*D2R, f2=la2*D2R, dl=(lo2-lo1)*D2R;
-  return normA(Math.atan2(Math.sin(dl)*Math.cos(f2),
-    Math.cos(f1)*Math.sin(f2)-Math.sin(f1)*Math.cos(f2)*Math.cos(dl))*(180/Math.PI));
-}
-function distance(la1,lo1,la2,lo2) {
-  const f1=la1*D2R,f2=la2*D2R,df=(la2-la1)*D2R,dl=(lo2-lo1)*D2R;
-  const a=Math.sin(df/2)**2+Math.cos(f1)*Math.cos(f2)*Math.sin(dl/2)**2;
-  return R_NM*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-}
-function destPoint(lat, lon, brg, distNM) {
-  const d = distNM / R_NM;
-  const b = brg * D2R;
-  const φ1 = lat * D2R, λ1 = lon * D2R;
-  const φ2 = Math.asin(Math.sin(φ1)*Math.cos(d) + Math.cos(φ1)*Math.sin(d)*Math.cos(b));
-  const λ2 = λ1 + Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(φ1), Math.cos(d)-Math.sin(φ1)*Math.sin(φ2));
-  return [φ2/D2R, λ2/D2R];
-}
-function crossTrack(la1,lo1,la2,lo2,laA,loA) {
-  const d13=distance(la1,lo1,laA,loA);
-  const t12=bearing(la1,lo1,la2,lo2)*D2R;
-  const t13=bearing(la1,lo1,laA,loA)*D2R;
-  return Math.asin(Math.sin(d13/R_NM)*Math.sin(t13-t12))*R_NM;
-}
-
-// ══════════════════════════════════════════════════════
-// PFD CANVAS
-// ══════════════════════════════════════════════════════
-const cvs = document.getElementById('pfd');
-const ctx = cvs.getContext('2d');
-
-function resizePFD() {
-  const el = document.getElementById('pfd-wrap');
-  cvs.width  = el.clientWidth;
-  cvs.height = el.clientHeight;
-}
-
-function drawPFD() {
-  const W = cvs.width, H = cvs.height;
-  const ctrlEl = document.querySelector('.ctrl-bar');
-  const CTRL_H = ctrlEl ? ctrlEl.offsetHeight : 80;
-  const usableH = H - CTRL_H;
-  const tapW = Math.max(56, Math.min(76, W * 0.082));
-  const aiX  = tapW, aiW = W - tapW * 2;
-  const aiH  = Math.floor(usableH * 0.52);
-  const hsiH = usableH - aiH;
-
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, W, H);
-
-  drawSpeedTape(0, 0, tapW, usableH);
-  drawAltTape(W - tapW, 0, tapW, usableH);
-
-  // vertical dividers
-  ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(tapW, 0);     ctx.lineTo(tapW, usableH);     ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(W-tapW, 0);   ctx.lineTo(W-tapW, usableH);   ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(tapW, aiH);   ctx.lineTo(W-tapW, aiH);       ctx.stroke();
-
-  drawAI(aiX, 0, aiW, aiH);
-  drawHSI(aiX, aiH, aiW, hsiH);
-}
-
-// ────────────────────────────────────────
-// ATTITUDE INDICATOR
-// ────────────────────────────────────────
-function drawAI(x, y, w, h) {
-  const cx = x + w/2, cy = y + h * 0.47;
-  const ppd = h / 28;
-
-  ctx.save();
-  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(-S.bnk * D2R);
-  const skyY = S.pit * ppd;
-  const sg = ctx.createLinearGradient(0,-h,0,0);
-  sg.addColorStop(0,'#0e3670'); sg.addColorStop(1,'#1a56a0');
-  ctx.fillStyle = sg;
-  ctx.fillRect(-w*2,-h*2,w*4,h*2+skyY);
-  const gg = ctx.createLinearGradient(0,skyY,0,skyY+h);
-  gg.addColorStop(0,'#5c2c06'); gg.addColorStop(1,'#281003');
-  ctx.fillStyle = gg;
-  ctx.fillRect(-w*2,skyY,w*4,h*2);
-  ctx.strokeStyle='#fff'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(-w*2,skyY); ctx.lineTo(w*2,skyY); ctx.stroke();
-
-  ctx.font=`${Math.max(8,w*0.022)}px Courier New`;
-  ctx.textAlign='center'; ctx.fillStyle='#fff';
-  for (let p=-25;p<=25;p+=5) {
-    if (p===0) continue;
-    const py=skyY-p*ppd;
-    if (Math.abs(py)>h*1.1) continue;
-    const lw=(p%10===0)?w*0.17:w*0.09;
-    ctx.strokeStyle='#fff'; ctx.lineWidth=p%10===0?1.5:1;
-    ctx.beginPath(); ctx.moveTo(-lw/2,py); ctx.lineTo(lw/2,py); ctx.stroke();
-    if (p%10===0) {
-      ctx.fillText(Math.abs(p),-lw/2-15,py+4);
-      ctx.fillText(Math.abs(p), lw/2+15,py+4);
+    // --- Responsive Auto-Scaling Logic ---
+    function adjustScale() {
+        const frame = document.querySelector('.cdu-frame');
+        const frameNativeW = 354, frameNativeH = 567;
+        const scaleW = window.innerWidth  / frameNativeW;
+        const scaleH = window.innerHeight / frameNativeH;
+        const scale  = Math.min(scaleW, scaleH);
+        frame.style.transform       = `scale(${scale})`;
+        frame.style.transformOrigin = 'center center';
     }
-  }
-  ctx.restore();
+    window.addEventListener('resize', adjustScale);
 
-  const br=Math.min(w,h)*0.44;
-  ctx.save(); ctx.translate(cx,y+br*0.13+4);
-  ctx.strokeStyle='#bbb'; ctx.lineWidth=1;
-  for (const a of [-60,-45,-30,-20,-10,0,10,20,30,45,60]) {
-    const r=(a-90)*D2R, r1=br*0.93, r2=br*(Math.abs(a)%30===0?0.81:0.88);
-    ctx.beginPath(); ctx.moveTo(Math.cos(r)*r1,Math.sin(r)*r1);
-    ctx.lineTo(Math.cos(r)*r2,Math.sin(r)*r2); ctx.stroke();
-  }
-  ctx.save(); ctx.rotate(-S.bnk*D2R);
-  const tp=br*0.86;
-  ctx.fillStyle='#fff'; ctx.beginPath();
-  ctx.moveTo(0,-tp); ctx.lineTo(-6,-tp+11); ctx.lineTo(6,-tp+11);
-  ctx.closePath(); ctx.fill();
-  ctx.restore(); ctx.restore();
+    // --- State Variables ---
+    let currentMode = 'HOME';
+    let audioTab = 'COM'; 
+    let inputTarget = 'com1';
+    let currentInput = "";
+    let xpdrInput = "";
+    
+    // SELCAL State
+    let selcalCode = "BCAJ";
+    let selcalInput = "";
+    
+    let hasStartedTyping = false; 
+    
+    let micSelected = 'COM1'; 
+    let monStates = { com1: true, com2: true, uvhf: false, vhffm: true, hf: false, selcal: false, nav1: true, nav2: true, speaker: true };
+    let clicksState = 'Off'; 
+    let icStates = { CoPilot: true, Pilot: true, Crew1: true, Pass: true, Crew2: true, wICS: true, Isolate: false, Loop1: false, Loop2: false, Loop5: false };
+    
+    let voxState = 'Off';
+    let volumes = { com1: 100, com2: 75, uvhf: 90, pb: 100, intercom: 100, vhffm: 100, hf: 100, clicks: 100, nav1: 100, nav2: 100, speaker: 100, vox: 50 };
+    
+    let freqs = { 
+        com1: { act: "124.380", stb: "129.990" }, com2: { act: "119.340", stb: "132.110" }, 
+        uvhf: { act: "115.000", stb: "110.000" }, hf: { act: "7.5423", stb: "11.4570" },
+        nav1: { act: "117.80", stb: "113.00", id: "TOP" }, nav2: { act: "115.50", stb: "113.25", id: "STJ" }
+    };
+    
+    let xpdrState = { mode: 'Auto', code: '1234', active: 'XPDR2', adsb: true, flightId: 'TERRY' };
+    let hfState = { tuning: 'Simplex', emission: 'LSB V', sql: 'SQ3', pwr: 'High' };
 
-  ctx.save(); ctx.translate(cx,cy);
-  const ws=w*0.14;
-  ctx.strokeStyle='#fff'; ctx.lineWidth=2.5;
-  ctx.beginPath(); ctx.moveTo(-ws,0); ctx.lineTo(-ws*0.35,0); ctx.lineTo(-ws*0.12,ws*0.22); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo( ws,0); ctx.lineTo( ws*0.35,0); ctx.lineTo( ws*0.12,ws*0.22); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0,0,3,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
-  ctx.restore();
+    // --- EXACT EXCEL PERF DATA ENGINE ---
+    let perfData = { alt: "0", temp: "20", weight: "16000", vs: "0" };
+    let perfResults = { oge: "0.0", ige: "0.0", oge_gonogo: "0.0", ige_gonogo: "0.0", mta30: "0.0", mta10: "0.0", mta25: "0.0", vy: "0.0", vsTq: "0.0", outOfLimits: false };
 
-  ctx.save(); ctx.translate(cx,y+h*0.87);
-  ctx.rotate(-S.bnk*D2R);
-  ctx.strokeStyle='#666'; ctx.lineWidth=1;
-  const ss=22;
-  ctx.strokeRect(-ss,-5,ss*2,10);
-  const bx=Math.max(-ss+6,Math.min(ss-6,-Math.sin(S.bnk*D2R)*ss*0.6));
-  ctx.beginPath(); ctx.arc(bx,0,5,0,Math.PI*2);
-  ctx.fillStyle='#000'; ctx.fill(); ctx.strokeStyle='#ccc'; ctx.stroke();
-  ctx.restore();
+    // Vy Tables
+    const vyTemps = [-32, -20, -10, 0, 10, 20, 30, 40];
+    const vyWeights = [16000, 18000, 19200];
+    const vyData = [
+        [72.0, 71.8, 71.0, 70.8, 70.7, 70.3, 70.1, 70.0],
+        [75.8, 75.3, 74.9, 74.3, 74.0, 73.5, 73.2, 72.8],
+        [77.2, 77.0, 76.8, 76.0, 75.8, 75.0, 74.6, 74.0]
+    ];
 
-  ctx.restore();
-}
+    // Climb/Descent TQ Tables
+    const vsRates = [0, 500, 1000, 1500, 2000, 2500, 3000];
+    const vsWeights = [16000, 18000, 20000];
+    const climbData = [
+        [0, 12.2, 24.8, 36.9, 49.2, 61.3, 73.9],
+        [0, 13.8, 28.0, 41.5, 55.3, 69.2, 83.4],
+        [0, 15.2, 30.8, 46.1, 61.3, 76.6, 93.6]
+    ];
+    const descentData = [
+        [0, 11.0, 22.0, 33.0, 43.8, 54.9, 65.8],
+        [0, 12.2, 22.4, 37.0, 49.2, 61.6, 74.0],
+        [0, 13.8, 27.2, 41.0, 54.8, 68.5, 82.2]
+    ];
 
-// ────────────────────────────────────────
-// SPEED TAPE
-// ────────────────────────────────────────
-function drawSpeedTape(x, y, w, h) {
-  ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
-  ctx.fillStyle='#0d0d0d'; ctx.fillRect(x,y,w,h);
-  const cy=y+h/2, ppk=h/80;
-  const bands=[[0,65,'rgba(255,255,255,0.1)'],[65,125,'rgba(0,180,0,0.18)'],
-    [125,165,'rgba(0,180,0,0.12)'],[165,200,'rgba(255,210,0,0.17)'],[200,250,'rgba(255,50,50,0.22)']];
-  for(const[f,t,c]of bands){
-    const y1=cy-(t-S.spd)*ppk,y2=cy-(f-S.spd)*ppk;
-    ctx.fillStyle=c; ctx.fillRect(x+w-6,Math.max(y,y1),5,Math.min(h,y2-y1));
-  }
-  const s0=Math.floor((S.spd-44)/10)*10;
-  for(let s=s0;s<=S.spd+52;s++){
-    if(s<0) continue;
-    const ty=cy-(s-S.spd)*ppk;
-    if(ty<y||ty>y+h) continue;
-    const maj=s%10===0, m5=s%5===0;
-    if(!maj&&!m5) continue;
-    ctx.strokeStyle=maj?'#aaa':'#444'; ctx.lineWidth=maj?1.5:0.8;
-    ctx.beginPath(); ctx.moveTo(x+w-6,ty); ctx.lineTo(x+w-(maj?15:10),ty); ctx.stroke();
-    if(maj){
-      ctx.fillStyle='#aaa'; ctx.font=`${Math.max(9,w*0.17)}px Courier New`;
-      ctx.textAlign='right'; ctx.fillText(s,x+w-17,ty+4);
+    const igeOgeMap = [
+        [70, 64.5], [71, 65.5], [72, 66], [73, 67], [74, 68], [75, 68.5], [76, 69.5], [77, 70], [78, 71], [79, 72],
+        [80, 73], [81, 73.5], [82, 74.5], [83, 75], [84, 76], [85, 77], [86, 78], [87, 78.5], [88, 79.5], [89, 80],
+        [90, 81], [91, 82], [92, 82.5], [93, 83.5], [94, 84.5], [95, 85], [96, 86], [97, 86.5], [98, 87.5], [99, 88.5],
+        [100, 89], [101, 90], [102, 91], [103, 92], [104, 92.5], [105, 93.5], [106, 94], [107, 95], [108, 96],
+        [109, 96.5], [110, 97.5], [111, 98], [112, 99], [113, 100], [114, 101]
+    ];
+
+    const oge19200_data = [
+        [94, 94, 95, 95.5, 96, 97, 97.5, 98.5, 99, 100],          
+        [95, 95.5, 96, 97, 97.5, 98.5, 99, 100, 101, 102],        
+        [96, 97, 97.5, 98.5, 99, 100, 101, 102, 103, 104],        
+        [97.5, 98.5, 99, 100, 101, 102, 103, 104, 105, 106],      
+        [99, 100, 101, 102, 103, 104, 105, 106, 107, 108],        
+        [101, 102, 103, 104, 105, 106, 107, 108, 110, 111.5],     
+        [103, 104, 105, 106, 107, 108, 110, 111.5, 112.5, 114.5]  
+    ];
+
+    const oge16000_data = [
+        [75.5, 75.5, 76, 76, 76.5, 76.5, 77, 77.5, 77.5, 78],     
+        [76, 76.5, 76.5, 77, 77, 77.5, 77.5, 78.5, 78.5, 79],     
+        [77, 77, 77.5, 78, 78.5, 78.5, 78.5, 79, 79.5, 80],       
+        [78, 78.5, 78.5, 79, 79.5, 80, 80, 80.5, 81, 81.5],       
+        [79, 79.5, 80, 80.5, 80.5, 81, 81.5, 82, 82.5, 83],       
+        [80, 80.5, 81, 81.5, 82, 82.5, 83, 83.5, 84, 84.5],       
+        [81.5, 82, 82.5, 83, 83.5, 84, 84.5, 85, 85.5, 86]        
+    ];
+
+    const mta30_data = [
+        [129,129,130,131,131,131,132,132,133,133,134,134,135,135,136,136,137,137,136,135,133,132,131,129,128,127,125,123,121,120,118,115,114,112,110,107,105,103],
+        [125,125,126,126,127,127,127,128,128,129,129,130,130,131,131,131,132,132,131,131,129,128,127,126,124,123,121,118,117,115,115,112,110,109,106,104,102,100],
+        [120,120,121,121,122,122,123,123,124,124,124,125,125,126,126,126,127,127,127,125,124,123,121,120,119,117,116,114,113,111,110,107,105,104,102,100,97,96],
+        [116,116,117,117,118,118,119,119,119,120,120,121,121,121,122,122,123,123,122,121,120,119,117,116,114,113,112,110,109,107,105,103,102,100,99,96,94,92],
+        [111,112,112,113,113,113,114,114,115,115,115,116,117,117,117,118,118,119,117,116,115,114,112,111,111,109,108,106,105,103,101,99,97,96,94,92,90,88],
+        [108,108,109,109,109,110,110,111,111,111,112,112,112,113,113,113,114,114,113,112,111,110,109,108,106,105,103,102,101,99,97,95,94,92,90,88,86,85],
+        [103,104,104,105,105,105,106,106,107,107,107,108,108,109,109,109,109,110,109,108,107,105,104,103,102,101,99,97,96,95,93,91,90,89,87,84,81,81],
+        [100,100,100,101,101,102,102,102,103,103,103,104,104,104,105,105,105,105,105,103,103,101,100,99,98,97,95,93,93,91,89,88,86,85,83,81,79,78],
+        [96,97,97,97,97,98,98,99,99,99,100,100,100,101,101,101,102,102,101,99,98,97,96,95,94,93,91,90,89,87,87,84,83,81,79,77,76,75],
+        [92,93,93,93,94,94,95,95,95,95,96,96,96,96,97,97,97,97,97,95,95,93,92,91,90,89,88,86,85,84,82,81,79,78,76,75,74],
+        [89,89,90,90,90,91,91,91,91,92,92,92,93,93,93,93,94,93,92,91,91,89,89,88,86,85,84,83,81,80,78,77,75,74,73,72],
+        [86,86,86,87,87,87,87,88,88,88,89,89,89,89,89,90,90,89,89,87,86,85,85,84,83,82,80,79,77,76,75,74,72,71,70],
+        [82,83,83,83,83,84,84,84,84,85,85,85,85,85,86,86,87,86,85,84,83,82,81,80,79,78,77,75,74,73,71,71,69,68],
+        [79,79,80,80,80,80,81,81,81,81,81,82,82,82,83,83,83,82,81,80,79,79,78,77,76,75,74,72,71,70,69,67,66],
+        [76,76,76,76,77,77,77,77,78,78,78,78,79,79,79,79,79,79,78,77,76,75,74,73,72,71,70,69,68,66,66,65]
+    ];
+
+    function interpolate1D(x, x0, x1, y0, y1) {
+        if (x1 === x0) return y0;
+        return y0 + (x - x0) * (y1 - y0) / (x1 - x0);
     }
-  }
-  const bh=22;
-  ctx.fillStyle='#000'; ctx.fillRect(x,cy-bh/2,w,bh);
-  ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.strokeRect(x,cy-bh/2,w,bh);
-  ctx.fillStyle='#fff'; ctx.font=`bold ${Math.max(13,w*0.2)}px Courier New`;
-  ctx.textAlign='center'; ctx.fillText(Math.round(S.spd),x+w/2,cy+6);
-  ctx.fillStyle='#555'; ctx.font='8px Courier New';
-  ctx.fillText('KT',x+w/2,y+11);
-  ctx.restore();
-}
 
-// ────────────────────────────────────────
-// ALTITUDE TAPE
-// ────────────────────────────────────────
-function drawAltTape(x, y, w, h) {
-  ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
-  ctx.fillStyle='#0d0d0d'; ctx.fillRect(x,y,w,h);
-  const cy=y+h/2, pp100=h/20;
-  const a0=Math.floor((S.alt-1100)/100)*100;
-  for(let a=a0;a<=S.alt+1200;a+=100){
-    const ty=cy-(a-S.alt)*pp100/100;
-    if(ty<y||ty>y+h) continue;
-    const maj=a%500===0;
-    ctx.strokeStyle=maj?'#aaa':'#444'; ctx.lineWidth=maj?1.5:0.8;
-    ctx.beginPath(); ctx.moveTo(x+7,ty); ctx.lineTo(x+(maj?16:10),ty); ctx.stroke();
-    if(maj){
-      ctx.fillStyle='#aaa'; ctx.font=`${Math.max(9,w*0.16)}px Courier New`;
-      ctx.textAlign='left'; ctx.fillText(a,x+18,ty+4);
+    function interpolate2D(xArr, yArr, data2D, xVal, yVal) {
+        let x0 = 0, x1 = 1;
+        for (let i = 0; i < xArr.length - 1; i++) {
+            if (xVal >= xArr[i] && xVal <= xArr[i+1]) { x0 = i; x1 = i+1; break; }
+        }
+        if (xVal < xArr[0]) { x0 = 0; x1 = 1; }
+        if (xVal > xArr[xArr.length-1]) { x0 = xArr.length-2; x1 = xArr.length-1; }
+
+        let y0 = 0, y1 = 1;
+        for (let j = 0; j < yArr.length - 1; j++) {
+            if (yVal >= yArr[j] && yVal <= yArr[j+1]) { y0 = j; y1 = j+1; break; }
+        }
+        if (yVal < yArr[0]) { y0 = 0; y1 = 1; }
+        if (yVal > yArr[yArr.length-1]) { y0 = yArr.length-2; y1 = yArr.length-1; }
+
+        let valY0 = interpolate1D(xVal, xArr[x0], xArr[x1], data2D[y0][x0], data2D[y0][x1]);
+        let valY1 = interpolate1D(xVal, xArr[x0], xArr[x1], data2D[y1][x0], data2D[y1][x1]);
+        return interpolate1D(yVal, yArr[y0], yArr[y1], valY0, valY1);
     }
-  }
-  const bh=22;
-  ctx.fillStyle='#000'; ctx.fillRect(x,cy-bh/2,w,bh);
-  ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.strokeRect(x,cy-bh/2,w,bh);
-  ctx.fillStyle='#fff'; ctx.font=`bold ${Math.max(12,w*0.17)}px Courier New`;
-  ctx.textAlign='center'; ctx.fillText(Math.round(S.alt),x+w/2,cy+5);
-  ctx.fillStyle='#555'; ctx.font='8px Courier New';
-  ctx.fillText('FT',x+w/2,y+11);
-  ctx.restore();
-}
 
-// ────────────────────────────────────────
-// HSI
-// ────────────────────────────────────────
-function drawHSI(x, y, w, h) {
-  ctx.fillStyle='#0a0a0a';
-  ctx.fillRect(x,y,w,h);
+    function getOgeVal(dataArray, altIdx, tempIdx) {
+        let a0 = Math.floor(altIdx); let a1 = Math.ceil(altIdx);
+        let t0 = Math.floor(tempIdx); let t1 = Math.ceil(tempIdx);
+        let aFrac = altIdx - a0; let tFrac = tempIdx - t0;
 
-  const cx   = x + w / 2;
-  const r    = Math.min(w * 0.38, h * 0.46);  // leave room for side panels
-  const cy   = y + h * 0.50;
-  const arrowR = r * 0.84;
+        let val00 = dataArray[a0][t0]; let val01 = dataArray[a0][t1];
+        let val10 = dataArray[a1][t0]; let val11 = dataArray[a1][t1];
 
-  // ── side panel widths ──
-  const sideW = (w - r * 2) / 2 - 8;  // available width each side
-  const leftX  = x + 4;
-  const rightX = cx + r + 4;
-
-  // ── BRG1 left panel (VOR/ILS, blue) ──
-  if (brg1Visible) {
-    const brg1NavActive = navLat !== null;
-    const brg1NavBrg    = brg1NavActive ? bearing(S.lat, S.lon, navLat, navLon) : 0;
-    const brg1NavDist   = brg1NavActive ? distance(S.lat, S.lon, navLat, navLon) : 0;
-    drawHSISidePanel(leftX, y, sideW, h, {
-      label:     'BRG1',
-      sublbl:    navSrc !== 'FMS' ? navSrc : 'VOR',
-      color:     '#44aaff',
-      ident:     navIcao || '----',
-      brg:       brg1NavActive ? fmtA(brg1NavBrg) + '°'        : '---°',
-      dist:      brg1NavActive ? brg1NavDist.toFixed(1) + 'NM'  : '--.-NM',
-      needleSym: 'single',
-      align:     'left',
-    });
-  }
-
-  // ── BRG2 right panel (FMS active WP, green) ──
-  if (brg2Visible) {
-    const brg2FmsActive = S.awp >= 0 && S.awp < S.wps.length;
-    const brg2FmsBrg    = brg2FmsActive ? bearing(S.lat, S.lon, S.wps[S.awp].lat, S.wps[S.awp].lon) : 0;
-    const brg2FmsDist   = brg2FmsActive ? distance(S.lat, S.lon, S.wps[S.awp].lat, S.wps[S.awp].lon) : 0;
-    drawHSISidePanel(rightX, y, sideW, h, {
-      label:     'BRG2',
-      sublbl:    'FMS',
-      color:     '#00cc44',
-      ident:     brg2FmsActive ? S.wps[S.awp].ident : '----',
-      brg:       brg2FmsActive ? fmtA(brg2FmsBrg) + '°'        : '---°',
-      dist:      brg2FmsActive ? brg2FmsDist.toFixed(1) + 'NM'  : '--.-NM',
-      needleSym: 'double',
-      align:     'right',
-    });
-  }
-
-  // ── compass ──
-  ctx.save(); ctx.translate(cx, cy);
-
-  ctx.beginPath(); ctx.arc(0,0,r+3,0,Math.PI*2);
-  ctx.strokeStyle='#2a2a2a'; ctx.lineWidth=3; ctx.stroke();
-  ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2);
-  ctx.fillStyle='#0f0f0f'; ctx.fill();
-
-  // rotating rose
-  ctx.save();
-  ctx.rotate(-S.hdg * D2R);
-  for (let a=0;a<360;a+=5) {
-    const rad=a*D2R, is30=a%30===0, is10=a%10===0;
-    const rOut=r*0.97, rIn=r*(is30?0.73:is10?0.82:0.91);
-    ctx.strokeStyle=is30?'#bbb':is10?'#777':'#3a3a3a';
-    ctx.lineWidth=is30?2:is10?1.5:0.8;
-    ctx.beginPath();
-    ctx.moveTo(Math.sin(rad)*rOut,-Math.cos(rad)*rOut);
-    ctx.lineTo(Math.sin(rad)*rIn, -Math.cos(rad)*rIn);
-    ctx.stroke();
-  }
-  const ROSE={0:'N',30:'3',60:'6',90:'E',120:'12',150:'15',180:'S',210:'21',240:'24',270:'W',300:'30',330:'33'};
-  const fs=Math.max(9,r*0.115);
-  for (const [ang,label] of Object.entries(ROSE)) {
-    const a=Number(ang), rad=a*D2R, lr=r*0.60;
-    ctx.save();
-    ctx.translate(Math.sin(rad)*lr,-Math.cos(rad)*lr);
-    ctx.rotate(rad);
-    ctx.fillStyle=a===0?'#ff5555':'#ddd';
-    ctx.font=`bold ${fs}px Courier New`;
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(label,0,0);
-    ctx.restore();
-  }
-  ctx.restore(); // end rose rotation
-
-  // ── CRS arrow + CDB (Course Deviation Bar) ──
-  const dotGap = r * 0.165;
-  let cdiOff = 0, cdbActive = false, cdbWp = null;
-
-  if (navSrc === 'FMS' && S.awp >= 0 && S.awp < S.wps.length) {
-    // FMS: cross-track error from fwp→awp leg (positive = right of course)
-    // CDI deflects opposite: right of course → needle left (negative cdiOff)
-    cdbWp = S.wps[S.awp];
-    let xtk;
-    if (S.fwp >= 0 && S.fwp < S.wps.length) {
-      xtk = crossTrack(S.wps[S.fwp].lat, S.wps[S.fwp].lon,
-                       cdbWp.lat, cdbWp.lon, S.lat, S.lon);
-    } else {
-      // Approximate: perpendicular offset from course line through awp
-      const brgToWp = bearing(S.lat, S.lon, cdbWp.lat, cdbWp.lon);
-      const dtw     = distance(S.lat, S.lon, cdbWp.lat, cdbWp.lon);
-      xtk = -Math.sin(normAS(brgToWp - S.crs) * D2R) * dtw;
+        let val0 = interpolate1D(tFrac, 0, 1, val00, val01);
+        let val1 = interpolate1D(tFrac, 0, 1, val10, val11);
+        return interpolate1D(aFrac, 0, 1, val0, val1);
     }
-    cdiOff = Math.max(-1, Math.min(1, -xtk / rnp)) * 2 * dotGap;
-    cdbActive = true;
-  } else if ((navSrc === 'VOR' || navSrc === 'LOC') && navLat !== null) {
-    // HSI VOR/LOC: vorObsCrs 기준 편차 (S.crs/FMS 와 완전 독립)
-    // sin() 공식 사용 → devDeg=0° (코스) & devDeg=180° (역코스) 모두 CDI=0
-    cdbWp = { lat: navLat, lon: navLon };
-    const brgFromNav = bearing(navLat, navLon, S.lat, S.lon);
-    const devDeg     = normAS(brgFromNav - vorObsCrs);
-    const fullScale  = navSrc === 'VOR' ? 15 : 2.5;
-    cdiOff = Math.max(-1, Math.min(1,
-      -Math.sin(devDeg * D2R) / Math.sin(fullScale * D2R))) * 2 * dotGap;
-    cdbActive = true;
-  }
-  const CG = '#ffffff';
-  const dispCrs = activeCrs(); // 현재 navSrc 에 맞는 표시 코스
 
-  ctx.save();
-  ctx.rotate((dispCrs - S.hdg) * D2R);
-
-  // CRS course arrow — 머리: 화살촉, 꼬리: 선만
-  ctx.strokeStyle = CG; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(0, -r*0.23); ctx.lineTo(0, -arrowR+14); ctx.stroke();
-  ctx.fillStyle = CG; ctx.beginPath();
-  ctx.moveTo(0, -arrowR); ctx.lineTo(-6, -arrowR+14); ctx.lineTo(6, -arrowR+14);
-  ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(0, r*0.23); ctx.lineTo(0, arrowR); ctx.stroke();
-
-  // Deviation scale dots ±1, ±2
-  for (let i = -2; i <= 2; i++) {
-    if (i === 0) continue;
-    ctx.beginPath(); ctx.arc(i * dotGap, 0, 3.5, 0, Math.PI*2);
-    ctx.fillStyle = '#333'; ctx.fill();
-    ctx.beginPath(); ctx.arc(i * dotGap, 0, 3.5, 0, Math.PI*2);
-    ctx.strokeStyle = '#666'; ctx.lineWidth = 1; ctx.stroke();
-  }
-
-  // CDB needle — vertical bar that moves laterally
-  if (cdbActive) {
-    ctx.strokeStyle = CG; ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(cdiOff, -r * 0.38);
-    ctx.lineTo(cdiOff,  r * 0.38);
-    ctx.stroke();
-    // TO / FROM flag
-    const brgRef = bearing(S.lat, S.lon, cdbWp.lat, cdbWp.lon);
-    const diff = normA(brgRef - dispCrs);
-    const toFlag = diff < 90 || diff > 270;
-    ctx.fillStyle = CG;
-    ctx.font = `bold ${Math.max(8, r*0.095)}px Courier New`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(toFlag ? 'TO' : 'FROM', 0, toFlag ? -r*0.34 : r*0.34);
-    ctx.textBaseline = 'alphabetic';
-  }
-  ctx.restore();
-
-  // ── BRG1 needle (VOR/ILS → 파란 단선, 머리 화살촉·꼬리 선) ──
-  if (brg1Visible && navLat !== null) {
-    const brg1 = bearing(S.lat, S.lon, navLat, navLon);
-    ctx.save(); ctx.rotate((brg1 - S.hdg) * D2R);
-    const C1 = '#44aaff';
-    ctx.strokeStyle = C1; ctx.fillStyle = C1; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(0,-r*0.23); ctx.lineTo(0,-arrowR+14); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0,-arrowR); ctx.lineTo(-6,-arrowR+14); ctx.lineTo(6,-arrowR+14); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(0,r*0.23); ctx.lineTo(0,arrowR); ctx.stroke();
-    ctx.restore();
-  }
-
-  // ── BRG2 needle (FMS active WP → 녹색 복선, 머리 화살촉·꼬리 선) ──
-  if (brg2Visible && S.awp >= 0 && S.awp < S.wps.length) {
-    const brg2fms = bearing(S.lat, S.lon, S.wps[S.awp].lat, S.wps[S.awp].lon);
-    ctx.save(); ctx.rotate((brg2fms - S.hdg) * D2R);
-    const C2 = '#00cc44', g = 5.5;
-    ctx.strokeStyle = C2; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(-g,-r*0.23); ctx.lineTo(-g,-arrowR+14); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo( g,-r*0.23); ctx.lineTo( g,-arrowR+14); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-g,-arrowR+14); ctx.lineTo(0,-arrowR); ctx.lineTo(g,-arrowR+14); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-g,r*0.23); ctx.lineTo(-g,arrowR); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo( g,r*0.23); ctx.lineTo( g,arrowR); ctx.stroke();
-    ctx.restore();
-  }
-
-  // ── center aircraft ──
-  const mw=r*0.12;
-  ctx.strokeStyle='#fff'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(-mw,0); ctx.lineTo(-mw*0.35,0); ctx.lineTo(-mw*0.12,mw*0.6); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo( mw,0); ctx.lineTo( mw*0.35,0); ctx.lineTo( mw*0.12,mw*0.6); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0,-mw*0.85); ctx.lineTo(0,mw*0.5); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0,0,3,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
-
-  // ── heading index ──
-  ctx.fillStyle='#fff';
-  ctx.beginPath(); ctx.moveTo(0,-r-1); ctx.lineTo(-9,-r+13); ctx.lineTo(9,-r+13); ctx.closePath(); ctx.fill();
-
-  ctx.restore(); // end translate cx,cy
-
-  // ── HDG / CRS readout boxes (나란히) ──
-  const bw=60, bh=20, gap=4;
-  const hdgX = cx - bw - gap/2;
-  const crsX = cx + gap/2;
-  ctx.lineWidth=1;
-  // HDG box
-  ctx.fillStyle='#000'; ctx.strokeStyle='#555';
-  ctx.fillRect(hdgX,y+2,bw,bh); ctx.strokeRect(hdgX,y+2,bw,bh);
-  ctx.fillStyle='#fff'; ctx.font='bold 13px Courier New'; ctx.textAlign='center';
-  ctx.fillText(fmtA(S.hdg)+'°', hdgX+bw/2, y+16);
-  // CRS box
-  ctx.fillStyle='#000'; ctx.strokeStyle='#555';
-  ctx.fillRect(crsX,y+2,bw,bh); ctx.strokeRect(crsX,y+2,bw,bh);
-  ctx.fillStyle='#ccc'; ctx.font='bold 13px Courier New'; ctx.textAlign='center';
-  ctx.fillText('CRS '+fmtA(activeCrs()), crsX+bw/2, y+16);
-}
-
-// ── HSI Side Panel helper ──
-function drawHSISidePanel(x, y, w, h, opt) {
-  if (w < 30) return;
-  const cx = opt.align==='left' ? x : x + w;
-  const ta = opt.align==='left' ? 'left' : 'right';
-  const lineH = Math.min(16, h * 0.18);
-  const startY = y + h * 0.26;
-
-  ctx.save();
-  ctx.font = `bold ${Math.max(9, lineH * 0.75)}px Courier New`;
-  ctx.textAlign = ta;
-
-  // source label + needle symbol
-  const needleSym = opt.needleSym === 'single' ? '⬆' : '⇑';
-
-  ctx.fillStyle = opt.color;
-  ctx.fillText(opt.label, cx, startY);
-  ctx.font = `${Math.max(8, lineH * 0.6)}px Courier New`;
-  ctx.fillStyle = '#555';
-  ctx.fillText(opt.sublbl, cx, startY + lineH * 0.85);
-
-  // needle mini symbol
-  ctx.fillStyle = opt.color;
-  ctx.font = `${Math.max(11, lineH)}px Courier New`;
-  ctx.fillText(needleSym, cx, startY + lineH * 2.0);
-
-  // ident
-  ctx.font = `bold ${Math.max(9, lineH * 0.72)}px Courier New`;
-  ctx.fillStyle = '#fff';
-  ctx.fillText(opt.ident, cx, startY + lineH * 3.1);
-
-  // bearing
-  ctx.font = `bold ${Math.max(11, lineH * 0.88)}px Courier New`;
-  ctx.fillStyle = opt.color;
-  ctx.fillText(opt.brg, cx, startY + lineH * 4.2);
-
-  // distance
-  ctx.font = `${Math.max(9, lineH * 0.72)}px Courier New`;
-  ctx.fillStyle = '#cccc66';
-  ctx.fillText(opt.dist, cx, startY + lineH * 5.2);
-
-  ctx.restore();
-}
-
-// ══════════════════════════════════════════════════════
-// MAP
-// ══════════════════════════════════════════════════════
-const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:18});
-const satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19});
-let currentLayer = 'osm';
-const leafMap = L.map('map',{center:[37.46,126.44],zoom:8,zoomControl:true,attributionControl:false});
-osmLayer.addTo(leafMap);
-
-function toggleLayer() {
-  const btn = document.getElementById('layer-btn');
-  if (currentLayer === 'osm') {
-    leafMap.removeLayer(osmLayer);
-    satLayer.addTo(leafMap);
-    currentLayer = 'sat';
-    btn.textContent = 'MAP';
-    btn.classList.add('sat');
-  } else {
-    leafMap.removeLayer(satLayer);
-    osmLayer.addTo(leafMap);
-    currentLayer = 'osm';
-    btn.textContent = 'SAT';
-    btn.classList.remove('sat');
-  }
-}
-
-function makeAircraftIcon(hdg) {
-  return L.divIcon({
-    html:`<div class="ac-marker" style="transform:rotate(${hdg}deg);transform-origin:12px 12px;">
-      <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="12,2 9,12 3,14 3,16 10.5,14.5 10.5,20 8.5,21 8.5,22 12,21 15.5,22 15.5,21 13.5,20 13.5,14.5 21,16 21,14 15,12"
-          fill="#00ff88" stroke="#003322" stroke-width="0.8"/>
-      </svg></div>`,
-    iconSize:[24,24],iconAnchor:[12,12],className:'',
-  });
-}
-
-let acMarker = L.marker([S.lat,S.lon],{icon:makeAircraftIcon(S.hdg),draggable:true,zIndexOffset:1000}).addTo(leafMap);
-acMarker.on('drag',e=>{const p=e.target.getLatLng();S.lat=p.lat;S.lon=p.lng;updateNav();});
-acMarker.on('dragend',()=>{S.trail=[];updateTrail();updateNav();});
-
-// ══════════════════════════════════════════════════════
-// GPS MODE
-// ══════════════════════════════════════════════════════
-let gpsMode = false;
-let gpsWatchId = null;
-let lastGpsMs = 0;
-
-function toggleGPS() {
-  gpsMode ? stopGPS() : startGPS();
-}
-
-function startGPS() {
-  if (!('geolocation' in navigator)) {
-    showGpsError('이 기기에서 GPS를 사용할 수 없습니다');
-    return;
-  }
-  const opts = { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 };
-  gpsWatchId = navigator.geolocation.watchPosition(
-    pos => {
-      if (!gpsMode) { gpsMode = true; updateGpsBtn(); }
-      const now = Date.now();
-      if (now - lastGpsMs >= 3000) { lastGpsMs = now; applyGPS(pos); }
-    },
-    gpsError,
-    opts
-  );
-}
-
-function stopGPS() {
-  if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
-  gpsMode = false;
-  updateGpsBtn();
-  // Reset to simulation defaults
-  S.spd = 120; S.hdg = 360; S.alt = 3000;
-  S.pit = pitchFromSpd(120); S.bnk = 0; bankTarget = 0;
-  S.running = false;
-  updateFlyBtns();
-}
-
-function applyGPS(pos) {
-  const c = pos.coords;
-  S.lat = c.latitude;
-  S.lon = c.longitude;
-  if (c.speed !== null && c.speed >= 0) {
-    S.spd = Math.max(0, Math.round(c.speed * 1.94384));
-    S.pit = pitchFromSpd(S.spd);
-  }
-  if (c.heading !== null && !isNaN(c.heading) && c.speed > 0.5) {
-    S.hdg = c.heading;
-    bankTarget = 0; S.bnk = 0;
-  }
-  if (c.altitude !== null) {
-    S.alt = Math.max(0, Math.round(c.altitude * 3.28084));
-  }
-  // Trail
-  const last = S.trail[S.trail.length - 1];
-  if (!last || distance(last[0], last[1], S.lat, S.lon) > 0.01) {
-    S.trail.push([S.lat, S.lon]);
-    if (S.trail.length > 600) S.trail.shift();
-    updateTrail();
-  }
-  leafMap.setView([S.lat, S.lon]);
-  updateAcOnMap();
-  updateNav();
-  // Status overlay
-  const acc = c.accuracy ? c.accuracy.toFixed(0) + 'm' : '--';
-  document.getElementById('gps-status').innerHTML =
-    `${decToDMS(S.lat, true)}<br>${decToDMS(S.lon, false)}<br>±${acc}`;
-}
-
-function decToDMS(deg, isLat) {
-  const abs = Math.abs(deg);
-  const d = Math.floor(abs);
-  const mTotal = (abs - d) * 60;
-  const m = Math.floor(mTotal);
-  const s = Math.round((mTotal - m) * 60);
-  const dir = isLat ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W');
-  return `${d}°${String(m).padStart(2,'0')}′${String(s).padStart(2,'0')}″${dir}`;
-}
-
-function showGpsError(msg) {
-  const btn = document.getElementById('gps-btn');
-  const status = document.getElementById('gps-status');
-  btn.textContent = '⚠ GPS';
-  btn.classList.remove('active');
-  btn.style.borderColor = '#aa3322';
-  btn.style.color = '#ff6655';
-  status.style.display = 'block';
-  status.style.borderColor = '#aa3322';
-  status.style.color = '#ff7766';
-  status.innerHTML = '⚠ ' + msg;
-}
-
-function gpsError(err) {
-  const msgs = { 1:'위치 권한 거부\n설정 → Safari → 위치 허용', 2:'위치 확인 불가', 3:'응답 시간 초과' };
-  showGpsError((msgs[err.code] || err.message).replace('\n','<br>'));
-  stopGPS();
-}
-
-function updateGpsBtn() {
-  const btn = document.getElementById('gps-btn');
-  const status = document.getElementById('gps-status');
-  btn.style.borderColor = '';
-  btn.style.color = '';
-  status.style.borderColor = '';
-  status.style.color = '';
-  if (gpsMode) {
-    btn.textContent = '● GPS ON';
-    btn.classList.add('active');
-    status.style.display = 'block';
-  } else {
-    btn.textContent = 'GPS';
-    btn.classList.remove('active');
-    status.style.display = 'none';
-  }
-}
-
-// ── Map tap → add waypoint directly ──
-let tapMarker = null;
-leafMap.on('click', function(e) {
-  const lat = e.latlng.lat, lon = e.latlng.lng;
-  const name = 'WP'+(S.wps.length+1);
-  pushWP({ident:name, lat, lon});
-  setPage(1);
-  if (tapMarker) leafMap.removeLayer(tapMarker);
-  tapMarker = L.marker([lat, lon], {
-    icon: L.divIcon({
-      html: '<div style="width:10px;height:10px;border-radius:50%;background:#ffdd00;border:2px solid #fff;box-shadow:0 0 6px #ffdd00;"></div>',
-      iconSize:[10,10], iconAnchor:[5,5], className:''
-    })
-  }).addTo(leafMap);
-  setTimeout(()=>{ if(tapMarker){leafMap.removeLayer(tapMarker);tapMarker=null;} }, 3000);
-});
-
-let trailLine = L.polyline([],{color:'#00ff88',weight:1.5,opacity:0.65}).addTo(leafMap);
-let routeLine = L.polyline([],{color:'#4488ff',weight:2,dashArray:'6 5',opacity:0.8}).addTo(leafMap);
-let crsLine   = L.polyline([],{color:'#ff00ff',weight:1.5,dashArray:'10 5',opacity:0.9}).addTo(leafMap);
-let vorCrsLine = L.polyline([],{color:'#ffaa00',weight:1.5,dashArray:'10 5',opacity:0.9}).addTo(leafMap);
-let vorStationMarker = null;
-let wpMarkers = [];
-
-function updateCrsLine() {
-  if (navSrc === 'VOR' || navSrc === 'LOC') {
-    crsLine.setLatLngs([]);
-    if (navLat === null) {
-      vorCrsLine.setLatLngs([]);
-      if (vorStationMarker) { leafMap.removeLayer(vorStationMarker); vorStationMarker = null; }
-    } else {
-      const ext = 150;
-      const fwd = destPoint(navLat, navLon, vorObsCrs, ext);
-      const bwd = destPoint(navLat, navLon, normA(vorObsCrs + 180), ext);
-      vorCrsLine.setLatLngs([bwd, [navLat, navLon], fwd]);
-      if (vorStationMarker) { leafMap.removeLayer(vorStationMarker); vorStationMarker = null; }
-      const stIcon = L.divIcon({
-        html: `<div style="position:relative;">
-          <div style="width:10px;height:10px;background:#ffaa00;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,0.7);transform:rotate(45deg);"></div>
-          <div style="position:absolute;left:13px;top:-3px;color:#ffaa00;font-size:9px;font-family:monospace;white-space:nowrap;text-shadow:1px 1px 2px #000;">${navSrc}${navIcao?':'+navIcao:''}</div>
-        </div>`,
-        iconSize:[10,10], iconAnchor:[5,5], className:''
-      });
-      vorStationMarker = L.marker([navLat, navLon], {icon: stIcon}).addTo(leafMap);
-    }
-  } else {
-    vorCrsLine.setLatLngs([]);
-    if (vorStationMarker) { leafMap.removeLayer(vorStationMarker); vorStationMarker = null; }
-    if (S.awp < 0 || S.awp >= S.wps.length) { crsLine.setLatLngs([]); return; }
-    const wp  = S.wps[S.awp];
-    const ext = 150;
-    const fwd = destPoint(wp.lat, wp.lon, S.crs, ext);
-    const bwd = destPoint(wp.lat, wp.lon, normA(S.crs + 180), ext);
-    crsLine.setLatLngs([bwd, [wp.lat, wp.lon], fwd]);
-  }
-}
-
-function updateTrail(){ trailLine.setLatLngs(S.trail.map(t=>[t[0],t[1]])); }
-let mapHdgUp = false;
-function toggleMapOrient() {
-  mapHdgUp = !mapHdgUp;
-  const btn = document.getElementById('orient-btn');
-  if (mapHdgUp) {
-    btn.textContent = 'HDG↑'; btn.classList.add('hdg-up');
-  } else {
-    btn.textContent = 'N↑'; btn.classList.remove('hdg-up');
-    document.getElementById('map').style.transform = '';
-    const ctrl = document.querySelector('.leaflet-control-container');
-    if (ctrl) ctrl.style.transform = '';
-  }
-  updateAcOnMap();
-}
-function updateAcOnMap(){
-  acMarker.setLatLng([S.lat,S.lon]);
-  acMarker.setIcon(makeAircraftIcon(S.hdg));
-  if (mapHdgUp) {
-    document.getElementById('map').style.transform = `rotate(${-S.hdg}deg)`;
-    const ctrl = document.querySelector('.leaflet-control-container');
-    if (ctrl) { ctrl.style.transformOrigin='center center'; ctrl.style.transform=`rotate(${S.hdg}deg)`; }
-  }
-}
-function updateWpMarkers(){
-  wpMarkers.forEach(m=>leafMap.removeLayer(m));
-  wpMarkers=[];
-  const coords=[];
-  S.wps.forEach((wp,i)=>{
-    const isA=i===S.awp, isB2=i===S.brg2wp;
-    const bg=isA?'#ffaa00':isB2?'#ff8800':'#3377dd';
-    const icon=L.divIcon({
-      html:`<div style="position:relative;">
-        <div style="width:10px;height:10px;border-radius:50%;background:${bg};border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,0.6);"></div>
-        <div style="position:absolute;left:12px;top:-2px;color:#fff;font-size:8px;font-family:monospace;white-space:nowrap;text-shadow:1px 1px 2px #000;">${wp.ident}</div>
-      </div>`,
-      iconSize:[10,10],iconAnchor:[5,5],className:'',
-    });
-    const m=L.marker([wp.lat,wp.lon],{icon}).addTo(leafMap);
-    m.on('click',()=>selectWP(i));
-    wpMarkers.push(m);
-    coords.push([wp.lat,wp.lon]);
-  });
-  routeLine.setLatLngs(coords);
-}
-
-// ══════════════════════════════════════════════════════
-// NAVIGATION
-// ══════════════════════════════════════════════════════
-function updateNav(){
-  // BRG1: FMS = active WP, VOR/LOC = selected navaid
-  if (navSrc === 'FMS') {
-    if (S.awp>=0&&S.awp<S.wps.length) {
-      const wp=S.wps[S.awp];
-      S.brg = bearing(S.lat,S.lon,wp.lat,wp.lon);
-      S.dtw = distance(S.lat,S.lon,wp.lat,wp.lon);
-      if (S.fwp>=0) {
-        S.xtk = crossTrack(S.wps[S.fwp].lat,S.wps[S.fwp].lon,wp.lat,wp.lon,S.lat,S.lon);
-      } else {
-        // Approximate XTK: positive = right of course (consistent with crossTrack)
-        S.xtk = -Math.sin(normAS(S.brg - S.crs) * D2R) * S.dtw;
-      }
-    } else { S.brg=0; S.dtw=0; S.xtk=0; }
-  } else {
-    // VOR / LOC — BRG1 points to the selected navaid station
-    if (navLat !== null) {
-      S.brg = bearing(S.lat,S.lon,navLat,navLon);
-      S.dtw = distance(S.lat,S.lon,navLat,navLon);
-    } else { S.brg=0; S.dtw=0; }
-    S.xtk = 0;
-  }
-
-  // BRG2: always flight-plan waypoint
-  if (S.brg2wp>=0&&S.brg2wp<S.wps.length) {
-    const wp2=S.wps[S.brg2wp];
-    S.brg2 = bearing(S.lat,S.lon,wp2.lat,wp2.lon);
-    S.dtw2 = distance(S.lat,S.lon,wp2.lat,wp2.lon);
-  } else { S.brg2=0;S.dtw2=0; }
-
-  updateCrsLine();
-  renderNavBox();
-}
-function renderNavBox(){
-  document.getElementById('nav-brg1').textContent = S.awp>=0    ? fmtA(S.brg)+'°'       : '---°';
-  document.getElementById('nav-brg2').textContent = S.brg2wp>=0 ? fmtA(S.brg2)+'°'      : '---°';
-  document.getElementById('nav-crs').textContent  = fmtA(activeCrs())+'°';
-  document.getElementById('nav-dtw').textContent  = S.awp>=0    ? S.dtw.toFixed(1)+'NM' : '---NM';
-}
-
-// ══════════════════════════════════════════════════════
-// FLIGHT PLAN STATE MACHINE
-// ══════════════════════════════════════════════════════
-let fpMode = 'LIST'; // 'LIST'|'ADD'|'IDENT'|'LAT'|'LON'|'IFR'
-let fpInputBuf = '';
-let fpTempLat = null;
-let fpIfrPhase = 'dep';
-
-function fpGo(mode) { fpMode = mode; if(mode==='IDENT'||mode==='LAT'||mode==='LON') fpInputBuf=''; fpRender(); }
-
-function fpRender() {
-  const area   = document.getElementById('fp-content-area');
-  const title  = document.getElementById('fp-mode-title');
-  const footer = document.getElementById('fp-footer-nav');
-  if (!area) return;
-  switch(fpMode) {
-    case 'LIST':  fpRenderList(area, title, footer);  break;
-    case 'ADD':   fpRenderAdd(area, title, footer);   break;
-    case 'IDENT': fpRenderIdent(area, title, footer); break;
-    case 'LAT':   fpRenderCoord(area, title, footer, 'LAT'); break;
-    case 'LON':   fpRenderCoord(area, title, footer, 'LON'); break;
-    case 'IFR':   fpRenderIfr(area, title, footer);  break;
-  }
-}
-
-function fpRenderList(area, title, footer) {
-  title.textContent = 'ACTIVE FLIGHT PLAN';
-  if (S.wps.length === 0) {
-    area.innerHTML = `<div class="fp-empty-state">
-      <div class="fp-empty-label">FLIGHT PLAN EMPTY</div>
-      <button class="fp-empty-btn" onclick="fpGo('ADD')">＋ Add Origin</button>
-      <button class="fp-empty-btn" onclick="fpGo('ADD')">＋ Add Enroute Waypoint</button>
-      <button class="fp-empty-btn" onclick="fpGo('ADD')">＋ Add Destination</button>
-    </div>`;
-  } else {
-    let html = `<div class="fp-panel-border" style="padding:0;overflow-y:auto;">`;
-    html += `<div class="fp-section-hdr"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.5" fill="none" stroke="#87ceeb" stroke-width="1.2"/></svg>Origin – ${S.wps[0].ident}</div>`;
-    S.wps.forEach((wp,i)=>{
-      const isA=i===S.awp, isB2=i===S.brg2wp;
-      let cls='fp-wp-row'+(isA?' active-wp':'')+(isB2?' brg2-wp':'');
-      const d=distance(S.lat,S.lon,wp.lat,wp.lon), b=bearing(S.lat,S.lon,wp.lat,wp.lon);
-      const badge=wp.phase?`<span class="fp-phase-badge badge-${wp.phase.toLowerCase()}">${wp.phase}</span>`:'';
-      html+=`<div class="${cls}" onclick="selectWP(${i})">
-        <span class="fp-wp-seq">${i+1}</span>
-        <span class="fp-wp-ident">${badge}${wp.ident}</span>
-        <span class="fp-wp-hdg">${fmtA(b)}°</span>
-        <span class="fp-wp-dist">${d.toFixed(0)}NM</span>
-        <button class="fp-wp-b2${isB2?' active':''}" onclick="event.stopPropagation();setBrg2(${i})">B2</button>
-        <button class="fp-wp-del" onclick="event.stopPropagation();removeWP(${i})">✕</button>
-      </div>`;
-    });
-    if(S.wps.length>1) html+=`<div class="fp-section-hdr"><svg width="10" height="10" viewBox="0 0 10 10"><polygon points="5,1 9,9 1,9" fill="none" stroke="#87ceeb" stroke-width="1.2"/></svg>Destination – ${S.wps[S.wps.length-1].ident}</div>`;
-    html+=`</div>`;
-    area.innerHTML = html;
-  }
-  const flyOn = S.running ? 'fp-nav-active' : '';
-  footer.innerHTML = `
-    <div class="fp-nav-btn" onclick="fpGo('ADD')"><span>＋</span>Add WPT</div>
-    <div class="fp-nav-btn" onclick="clearFP()"><span>✕</span>Clear</div>
-    <div class="fp-nav-btn ${flyOn}" id="fly-btn" onclick="toggleSim()"><span>▶</span>FLY</div>
-    <div class="fp-nav-btn" onclick="resetSim()"><span>⟳</span>Reset</div>`;
-}
-
-function fpRenderAdd(area, title, footer) {
-  title.textContent = 'ADD WAYPOINT';
-  const apBtns = AIRPORTS.map(a=>`<button class="fp-ap-btn" onclick="fpAddPreset('${a.ident}')" title="${a.name}">${a.ident}</button>`).join('');
-  area.innerHTML = `
-    <div style="color:#87ceeb;font-size:8px;font-weight:bold;letter-spacing:0.5px;">KOREAN AIRPORTS</div>
-    <div class="fp-ap-grid">${apBtns}</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
-      <div class="fp-input-type-btn fp-cyan" onclick="fpGo('IDENT')">
-        <span style="font-size:20px;">⌨</span><span>IDENT</span>
-      </div>
-      <div class="fp-input-type-btn fp-cyan" onclick="fpGo('LAT')">
-        <span style="font-size:20px;">📍</span><span>COORDS</span>
-      </div>
-    </div>
-    <div class="fp-input-type-btn" style="margin-top:6px;" onclick="fpGo('IFR')">
-      <span style="font-size:18px;">✈</span><span>IFR PROCEDURES</span>
-    </div>`;
-  footer.innerHTML = `
-    <div class="fp-nav-btn" onclick="fpGo('LIST')"><span>↩</span>Back</div>
-    <div class="fp-nav-btn" onclick="fpGo('LIST')"><span>📋</span>FP List</div>`;
-}
-
-function fpAddPreset(ident) {
-  const a = AIRPORTS.find(x=>x.ident===ident);
-  if(a){ fpMode='LIST'; pushWP({ident:a.ident,lat:a.lat,lon:a.lon}); }
-}
-
-function fpRenderIdent(area, title, footer) {
-  title.textContent = 'IDENT ENTRY';
-  const disp = fpInputBuf || '';
-  area.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-      <div class="fp-disp-box">${disp||'<span style="color:#222">——</span>'}<span class="fp-disp-cursor">|</span></div>
-      <div class="fp-bksp-btn" onclick="fpBksp()">⬅<br><span style="font-size:8px;">BKSP</span></div>
-    </div>
-    <div class="fp-key-grid">
-      ${'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('').map(k=>`<div class="fp-key" onclick="fpType('${k}')">${k}</div>`).join('')}
-    </div>`;
-  footer.innerHTML = `
-    <div class="fp-nav-btn" onclick="fpGo('ADD')"><span>↩</span>Cancel</div>
-    <div class="fp-nav-btn" onclick="fpGo('LIST')"><span>📋</span>FP</div>
-    <div class="fp-nav-btn fp-nav-enter" onclick="fpConfirmIdent()"><span>↩</span>Enter</div>`;
-}
-
-function fpRenderCoord(area, title, footer, field) {
-  title.textContent = field==='LAT' ? 'LATITUDE ENTRY' : 'LONGITUDE ENTRY';
-  const hint = field==='LAT' ? '예: 37.4602 (또는 지도 탭)' : '예: 126.4407';
-  const disp = fpInputBuf || '';
-  area.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px;">
-      <div style="font-size:8px;color:#87ceeb;">${hint}</div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <div class="fp-disp-box">${disp||'<span style="color:#222">——</span>'}<span class="fp-disp-cursor">|</span></div>
-        <div class="fp-bksp-btn" onclick="fpBksp()">⬅<br><span style="font-size:8px;">BKSP</span></div>
-      </div>
-      <div class="fp-numpad-grid">
-        ${[1,2,3,4,5,6,7,8,9].map(n=>`<div class="fp-num-circ" onclick="fpType('${n}')">${n}</div>`).join('')}
-        <div class="fp-num-circ" onclick="fpType('.')">.</div>
-        <div class="fp-num-circ" onclick="fpType('0')">0</div>
-        <div class="fp-num-circ" onclick="fpType('-')">−</div>
-      </div>
-    </div>`;
-  footer.innerHTML = `
-    <div class="fp-nav-btn" onclick="fpGo('ADD')"><span>↩</span>Cancel</div>
-    <div class="fp-nav-btn fp-nav-enter" onclick="fpConfirmCoord('${field}')"><span>↩</span>Enter</div>`;
-}
-
-function fpRenderIfr(area, title, footer) {
-  title.textContent = 'IFR PROCEDURES';
-  const tabs = ['DEP','ENR','APP'];
-  const tabsHtml = tabs.map(t=>`<div class="fp-ifr-tab${fpIfrPhase===t.toLowerCase()?' active':''}" onclick="fpSetIfrPhase('${t.toLowerCase()}')">${t}</div>`).join('');
-  let panelHtml = '';
-  if(fpIfrPhase==='dep'){
-    panelHtml=`<div class="fp-ifr-lbl">Departure Airport</div><select class="fp-ifr-sel" id="dep-icao" onchange="loadSids()"></select><div class="fp-ifr-lbl">SID Procedure</div><select class="fp-ifr-sel" id="dep-sid"></select><button class="fp-ifr-add" onclick="addSidWps()">＋ ADD SID TO PLAN</button>`;
-  } else if(fpIfrPhase==='enr'){
-    panelHtml=`<div class="fp-ifr-lbl">Airway</div><select class="fp-ifr-sel" id="enr-airway" onchange="loadAirwayFixes()"></select><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;"><div><div class="fp-ifr-lbl">Entry Fix</div><select class="fp-ifr-sel" id="enr-entry"></select></div><div><div class="fp-ifr-lbl">Exit Fix</div><select class="fp-ifr-sel" id="enr-exit"></select></div></div><button class="fp-ifr-add" onclick="addAirwaySegment()">＋ ADD AIRWAY SEG</button><div class="fp-ifr-lbl" style="border-top:1px solid #152515;padding-top:5px;margin-top:5px;">Single Fix</div><select class="fp-ifr-sel" id="enr-fix"></select><button class="fp-ifr-add" onclick="addSingleFix()">＋ ADD FIX</button>`;
-  } else {
-    panelHtml=`<div class="fp-ifr-lbl">Arrival Airport</div><select class="fp-ifr-sel" id="app-icao" onchange="loadApproaches()"></select><div class="fp-ifr-lbl">Approach Procedure</div><select class="fp-ifr-sel" id="app-proc"></select><button class="fp-ifr-add" onclick="addAppWps()">＋ ADD APPROACH</button>`;
-  }
-  area.innerHTML = `<div class="fp-ifr-tab-row">${tabsHtml}</div><div class="fp-panel-border" style="overflow-y:auto;">${panelHtml}</div>`;
-  // Populate selects dynamically
-  if(fpIfrPhase==='dep'){
-    const s=document.getElementById('dep-icao');
-    if(s&&s.options.length===0){Object.keys(IFR_DB).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k+' – '+IFR_DB[k].name;s.appendChild(o);});loadSids();}
-  } else if(fpIfrPhase==='enr'){
-    const aw=document.getElementById('enr-airway');
-    if(aw&&aw.options.length===0){
-      Object.keys(IFR_AIRWAYS).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k;aw.appendChild(o);});
-      const fx=document.getElementById('enr-fix');
-      Object.keys(IFR_FIXES).sort().forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k;fx.appendChild(o);});
-      loadAirwayFixes();
-    }
-  } else {
-    const s=document.getElementById('app-icao');
-    if(s&&s.options.length===0){Object.keys(IFR_DB).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k+' – '+IFR_DB[k].name;s.appendChild(o);});loadApproaches();}
-  }
-  footer.innerHTML = `
-    <div class="fp-nav-btn" onclick="fpGo('ADD')"><span>↩</span>Back</div>
-    <div class="fp-nav-btn" onclick="fpGo('LIST')"><span>📋</span>FP</div>`;
-}
-
-function fpSetIfrPhase(phase) {
-  fpIfrPhase = phase;
-  const area=document.getElementById('fp-content-area'), title=document.getElementById('fp-mode-title'), footer=document.getElementById('fp-footer-nav');
-  fpRenderIfr(area, title, footer);
-}
-
-function fpType(k) { if(fpInputBuf.length<12) fpInputBuf+=k; fpRender(); }
-function fpBksp() { fpInputBuf=fpInputBuf.slice(0,-1); fpRender(); }
-
-function fpConfirmIdent() {
-  const v = fpInputBuf.trim().toUpperCase();
-  if(!v) return;
-  const f = AIRPORTS.find(a=>a.ident===v);
-  if(f){ fpMode='LIST'; fpInputBuf=''; pushWP({ident:f.ident,lat:f.lat,lon:f.lon}); }
-  else alert(`"${v}" not found.\nAvailable: ${AIRPORTS.map(a=>a.ident).join(', ')}`);
-}
-
-function fpConfirmCoord(field) {
-  const val = parseDegrees(fpInputBuf);
-  if(isNaN(val)){ alert('유효한 값을 입력하세요'); return; }
-  if(field==='LAT'){
-    if(val<-90||val>90){ alert('위도 범위: -90 ~ 90'); return; }
-    fpTempLat=val; fpInputBuf=''; fpGo('LON');
-  } else {
-    if(val<-180||val>180){ alert('경도 범위: -180 ~ 180'); return; }
-    const lat=fpTempLat, lon=val;
-    const name='WP'+(S.wps.length+1);
-    fpMode='LIST'; fpTempLat=null; fpInputBuf='';
-    pushWP({ident:name,lat,lon});
-  }
-}
-
-// Parses decimal degrees OR DMS: 37.4602 / 37°27'36.7"N / 37 27 36.7 N / N37-27-36.7
-function parseDegrees(str) {
-  if (!str) return NaN;
-  str = str.trim();
-  if (!str) return NaN;
-  // Pure decimal (possibly negative)
-  if (/^-?[\d.]+$/.test(str)) return parseFloat(str);
-  // Extract sign from N/S/E/W
-  let sign = 1;
-  if (/[Ss Ww]/.test(str.replace(/\s/g,''))) sign = -1;
-  // Strip direction letters and degree/minute/second symbols
-  const clean = str.replace(/[NSEWnsew°'"′″´`]/g, ' ').trim();
-  const parts = clean.match(/[\d]+(?:[.,][\d]+)?/g);
-  if (!parts || parts.length === 0) return NaN;
-  const d = parseFloat(parts[0]) || 0;
-  const m = parts.length > 1 ? parseFloat(parts[1]) || 0 : 0;
-  const s = parts.length > 2 ? parseFloat(parts[2]) || 0 : 0;
-  return sign * (d + m / 60 + s / 3600);
-}
-
-function pushWP(wp, phase){
-  if(phase) wp.phase=phase;
-  S.wps.push(wp);
-  if(S.awp<0) selectWP(0);
-  else{updateWpMarkers();fpRender();updateNav();}
-}
-function removeWP(i){
-  S.wps.splice(i,1);
-  if(S.awp===i)    S.awp=Math.max(-1,i-1); else if(S.awp>i)    S.awp--;
-  if(S.fwp===i)    S.fwp=-1;               else if(S.fwp>i)    S.fwp--;
-  if(S.brg2wp===i) S.brg2wp=-1;            else if(S.brg2wp>i) S.brg2wp--;
-  updateWpMarkers();fpRender();updateNav();
-}
-function selectWP(i){
-  S.fwp=S.awp;S.awp=i;
-  S.crs=bearing(S.lat,S.lon,S.wps[i].lat,S.wps[i].lon);
-  updateWpMarkers();fpRender();updateNav();
-}
-function setBrg2(i){
-  S.brg2wp=(S.brg2wp===i)?-1:i;
-  updateNav();fpRender();updateWpMarkers();
-}
-function clearFP(){
-  S.wps=[];S.awp=-1;S.fwp=-1;S.brg2wp=-1;
-  fpMode='LIST';
-  disengageNavAp();
-  updateWpMarkers();fpRender();updateNav();
-}
-
-// ══════════════════════════════════════════════════════
-// CONTROLS  — pitch & bank are AUTO; no manual buttons
-// ══════════════════════════════════════════════════════
-let rptTimer=null, rptInterval=null;
-
-function applyDelta(field, d){
-  switch(field){
-    case 'spd':
-      S.spd = Math.max(0, Math.min(320, S.spd + d));
-      S.pit = pitchFromSpd(S.spd);   // auto pitch from speed
-      break;
-    case 'hdg':
-      S.hdg = normA(S.hdg + d);
-      bankTarget = d > 0 ? 22 : -22;
-      disengageNavAp();
-      break;
-    case 'crs':
-      if (navSrc === 'VOR' || navSrc === 'LOC') {
-        vorObsCrs = normA(vorObsCrs + d); updateNav();
-      } else if (obsOn) {
-        S.crs = normA(S.crs + d); updateNav();
-      }
-      break;
-    case 'alt': S.alt=Math.max(0,Math.min(45000,S.alt+d)); break;
-  }
-}
-
-function startHold(f,d){
-  applyDelta(f,d);
-  rptTimer=setTimeout(()=>{rptInterval=setInterval(()=>applyDelta(f,d),80);},350);
-}
-function stopHold(){
-  clearTimeout(rptTimer);clearInterval(rptInterval);
-  bankTarget=0;   // wings level when button released
-}
-
-const btnMap={
-  'spd-dn':['spd',-1],'spd-up':['spd',1],
-  'hdg-dn':['hdg',-1],'hdg-up':['hdg',1],
-  'crs-dn':['crs',-1],'crs-up':['crs',1],
-  'alt-dn':['alt',-100],'alt-up':['alt',100],
-};
-Object.entries(btnMap).forEach(([id,[f,d]])=>{
-  const el=document.getElementById(id);
-  el.addEventListener('mousedown',()=>startHold(f,d));
-  el.addEventListener('touchstart',e=>{e.preventDefault();startHold(f,d);},{passive:false});
-});
-document.addEventListener('mouseup',stopHold);
-document.addEventListener('touchend',stopHold);
-document.addEventListener('touchcancel',stopHold);
-
-// CRS button initial state (OBS off, FMS mode → disabled)
-updateCrsButtons();
-
-// ══════════════════════════════════════════════════════
-// SIMULATION
-// ══════════════════════════════════════════════════════
-function updateFlyBtns(){
-  const txt = S.running ? '⏸ PAUSE' : '▶ FLY';
-  ['fly-btn','map-fly-btn'].forEach(id=>{
-    const b=document.getElementById(id);
-    if(!b) return;
-    b.textContent=txt;
-    b.classList.toggle('on',S.running);
-  });
-}
-function toggleSim(){
-  S.running=!S.running;
-  updateFlyBtns();
-  S.lastT=null;
-  if(S.running&&S.trail.length===0) S.trail.push([S.lat,S.lon]);
-}
-function resetSim(){
-  S.running=false;
-  updateFlyBtns();
-  S.trail=[];trailLine.setLatLngs([]);S.lastT=null;
-  updateAcOnMap();
-}
-
-function simStep(ts){
-  if(S.running && !gpsMode && S.lastT!==null){
-    const dt=(ts-S.lastT)/1000;
-    if(dt>0&&dt<0.5){
-      // smooth bank toward target
-      const bankDiff=bankTarget-S.bnk;
-      S.bnk+=Math.sign(bankDiff)*Math.min(Math.abs(bankDiff),50*dt);
-      if(Math.abs(bankTarget-S.bnk)<0.3) S.bnk=bankTarget;
-
-      const dDeg=S.spd*1852/3600*dt/111320;
-      const hr=S.hdg*D2R;
-      S.lat+=Math.cos(hr)*dDeg;
-      S.lon+=Math.sin(hr)*dDeg/Math.cos(S.lat*D2R);
-
-      const last=S.trail[S.trail.length-1];
-      if(!last||distance(last[0],last[1],S.lat,S.lon)>0.04){
-        S.trail.push([S.lat,S.lon]);
-        if(S.trail.length>600) S.trail.shift();
-        updateTrail();
-      }
-      updateAcOnMap();updateNav();
-      if(S.awp>=0&&S.dtw<0.25&&S.awp+1<S.wps.length){selectWP(S.awp+1);}
-
-      // ── NAV Autopilot PID ──
-      if (navApOn) {
-        let dtk, xtk;
-        if (navSrc === 'FMS') {
-          if (S.awp < 0 || S.awp >= S.wps.length) { disengageNavAp(); }
-          else {
-            // Auto-set CRS to DTK only when OBS is off
-            if (!obsOn) {
-              if (S.fwp >= 0 && S.fwp < S.wps.length) {
-                dtk = bearing(S.wps[S.fwp].lat, S.wps[S.fwp].lon,
-                              S.wps[S.awp].lat,  S.wps[S.awp].lon);
-              } else {
-                dtk = bearing(S.lat, S.lon, S.wps[S.awp].lat, S.wps[S.awp].lon);
-              }
-              S.crs = dtk;
-            } else {
-              dtk = S.crs; // OBS on: use manually selected course
-            }
-            xtk = S.xtk;
-          }
+    function calculatePerformance() {
+        let alt = parseFloat(perfData.alt) || 0;
+        let temp = parseFloat(perfData.temp) || 0;
+        let wt = parseFloat(perfData.weight) || 16000;
+        let vs = parseFloat(perfData.vs) || 0;
+
+        // 경고 검증 로직 추가
+        perfResults.outOfLimits = (alt > 14000 || temp > 40 || temp < -34);
+
+        let cAlt = Math.max(0, Math.min(14000, alt));
+        let cTemp = Math.max(-34, Math.min(40, temp));
+
+        // 1. MTA
+        let altIdx = cAlt / 1000;
+        let alt0 = Math.floor(altIdx);
+        let alt1 = Math.ceil(altIdx);
+        let altFrac = altIdx - alt0;
+
+        let tempIdx = (cTemp + 34) / 2;
+        let temp0 = Math.floor(tempIdx);
+        let temp1 = Math.ceil(tempIdx);
+        let tempFrac = tempIdx - temp0;
+
+        function getMtaVal(r, c) {
+            if(r >= mta30_data.length || c >= mta30_data[r].length) return null;
+            return mta30_data[r][c];
+        }
+
+        let mta00 = getMtaVal(alt0, temp0); let mta01 = getMtaVal(alt0, temp1);
+        let mta10 = getMtaVal(alt1, temp0); let mta11 = getMtaVal(alt1, temp1);
+
+        if (mta00 && mta01 && mta10 && mta11) {
+            let mta0 = interpolate1D(tempFrac, 0, 1, mta00, mta01);
+            let mta1 = interpolate1D(tempFrac, 0, 1, mta10, mta11);
+            let mta30 = interpolate1D(altFrac, 0, 1, mta0, mta1);
+
+            perfResults.mta30 = mta30.toFixed(1);
+            perfResults.mta10 = (mta30 + 7).toFixed(1); 
+            perfResults.mta25 = (mta30 + 11).toFixed(1); 
         } else {
-          // VOR/LOC: vorObsCrs 기준 (S.crs/FMS 불변)
-          if (navLat === null) { disengageNavAp(); }
-          else {
-            dtk = vorObsCrs;
-            xtk = Math.sin(normAS(bearing(navLat, navLon, S.lat, S.lon) - vorObsCrs) * D2R) * S.dtw;
-          }
+            perfResults.mta30 = "N/A"; perfResults.mta10 = "N/A"; perfResults.mta25 = "N/A";
         }
-        updateNavBtn(); // refresh orange/green each cycle
-        // In OBS mode, only run PID when aircraft is inside the intercept zone
-        if (navApOn && navInterceptOk()) {
-          // PID on cross-track error (NM; + = right of track, - = left)
-          const Kp=25, Ki=0.15, Kd=2.5;
-          navAp.xtkI = Math.max(-12, Math.min(12, navAp.xtkI - xtk * dt * Ki));
-          const rawD  = dt > 0 ? -(xtk - navAp.xtkPrev) / dt * Kd : 0;
-          const xtkD  = Math.max(-10, Math.min(10, rawD));
-          navAp.xtkPrev = xtk;
 
-          // Intercept angle capped ±45°
-          const intercept = Math.max(-45, Math.min(45, -xtk * Kp + navAp.xtkI + xtkD));
+        // 2. OGE 
+        let oAltIdx = Math.max(0, Math.min(6, cAlt / 1000));
+        let oTempIdx = Math.max(0, Math.min(9, (cTemp - (-10)) / 5));
 
-          // Desired heading = desired track + intercept correction
-          const desiredHdg = normA(dtk + intercept);
-          const hdgErr = normAS(desiredHdg - S.hdg);
+        let oge16k = getOgeVal(oge16000_data, oAltIdx, oTempIdx);
+        let oge19k = getOgeVal(oge19200_data, oAltIdx, oTempIdx);
 
-          // Smooth turn toward desired hdg (max 3°/s standard rate)
-          const turnRate = Math.tanh(hdgErr * 0.08) * 3;
-          S.hdg = normA(S.hdg + turnRate * dt);
+        let w_factor = (wt - 16000) / (19200 - 16000);
+        let finalOGE = interpolate1D(w_factor, 0, 1, oge16k, oge19k);
 
-          // Visual bank: proportional to turn rate (max 25° at 3°/s)
-          bankTarget = (turnRate / 3) * 25;
+        perfResults.oge = finalOGE.toFixed(1);
+        perfResults.oge_gonogo = oge19k.toFixed(1); 
+
+        // 3. IGE 
+        function getIGEfromOGE(targetOGE) {
+            let ige = 0;
+            for (let i = 0; i < igeOgeMap.length - 1; i++) {
+                if (targetOGE >= igeOgeMap[i][0] && targetOGE <= igeOgeMap[i+1][0]) {
+                    ige = interpolate1D(targetOGE, igeOgeMap[i][0], igeOgeMap[i+1][0], igeOgeMap[i][1], igeOgeMap[i+1][1]);
+                    break;
+                }
+            }
+            if (targetOGE < igeOgeMap[0][0]) ige = igeOgeMap[0][1] - (igeOgeMap[0][0] - targetOGE); 
+            if (targetOGE > igeOgeMap[igeOgeMap.length-1][0]) ige = igeOgeMap[igeOgeMap.length-1][1] + (targetOGE - igeOgeMap[igeOgeMap.length-1][0]);
+            return ige;
         }
-      }
+
+        perfResults.ige = getIGEfromOGE(finalOGE).toFixed(1);
+        perfResults.ige_gonogo = getIGEfromOGE(oge19k).toFixed(1);
+
+        // 4. Vy
+        let vyCalc = interpolate2D(vyTemps, vyWeights, vyData, cTemp, wt);
+        perfResults.vy = vyCalc.toFixed(1);
+
+        // 5. VS Torque Margin
+        let absVs = Math.abs(vs);
+        let vsTqCalc = 0;
+        if (vs > 0) {
+            vsTqCalc = interpolate2D(vsRates, vsWeights, climbData, absVs, wt);
+            perfResults.vsTq = "+" + vsTqCalc.toFixed(1);
+        } else if (vs < 0) {
+            vsTqCalc = interpolate2D(vsRates, vsWeights, descentData, absVs, wt);
+            perfResults.vsTq = "-" + vsTqCalc.toFixed(1);
+        } else {
+            perfResults.vsTq = "0.0";
+        }
     }
-  } else if(!S.running){
-    // bank snaps back to level even when not flying
-    const bankDiff=bankTarget-S.bnk;
-    if(Math.abs(bankDiff)>0.2) S.bnk+=Math.sign(bankDiff)*Math.min(Math.abs(bankDiff),60/60);
-    else S.bnk=bankTarget;
-  }
 
-  S.lastT=ts;
-  swRender();
-  drawPFD();
-  requestAnimationFrame(simStep);
-}
+    // --- High-fidelity SVG Icons ---
+    const homeButtons = [
+        { id: 'map', text: 'Map<br>Settings', icon: '<svg viewBox="0 0 100 100"><rect x="15" y="25" width="70" height="50" fill="#4caf50" rx="3"/><path d="M30 75 L50 25 L70 75" fill="#81c784"/><circle cx="50" cy="50" r="15" fill="none" stroke="#fff" stroke-width="4"/><line x1="20" y1="20" x2="45" y2="45" stroke="#ccc" stroke-width="8" stroke-linecap="round"/></svg>' },
+        { id: 'traffic', text: 'Traffic', icon: '<svg viewBox="0 0 100 100"><polygon points="30,30 40,50 20,50" fill="#0ff"/><polygon points="70,50 80,70 60,70" fill="#fff"/><line x1="30" y1="20" x2="30" y2="10" stroke="#0ff" stroke-width="4"/><polygon points="25,15 30,5 35,15" fill="#0ff"/><line x1="70" y1="80" x2="70" y2="90" stroke="#fff" stroke-width="4"/><polygon points="65,85 70,95 75,85" fill="#fff"/></svg>' },
+        { id: 'weather', text: 'Connext<br>Weather', icon: '<svg viewBox="0 0 100 100"><circle cx="40" cy="40" r="20" fill="#ffeb3b"/><rect x="45" y="40" width="35" height="30" fill="#fff" rx="10"/><path d="M60 65 L45 85 L55 85 L50 100" stroke="#f44336" stroke-width="4" fill="none"/></svg>' },
+        { id: 'terrain', text: 'Terrain<br>Proximity', icon: '<svg viewBox="0 0 100 100"><polygon points="10,90 50,20 90,90" fill="#4caf50"/><polygon points="30,55 50,20 70,55" fill="#ffeb3b"/><polygon points="40,37 50,20 60,37" fill="#f44336"/></svg>' },
+        { id: 'directTo', text: 'Direct To', icon: '<svg viewBox="0 0 100 100"><path d="M35 20 L35 80 C70 80, 85 65, 85 50 C85 35, 70 20, 35 20 Z" fill="none" stroke="#fff" stroke-width="10"/><line x1="10" y1="50" x2="90" y2="50" stroke="#fff" stroke-width="8"/><polygon points="70,35 95,50 70,65" fill="#fff"/></svg>' },
+        { id: 'fpl', text: 'Flight Plan', icon: '<svg viewBox="0 0 100 100"><path d="M20 80 L50 50 L80 80" fill="none" stroke="#fff" stroke-width="4"/><circle cx="20" cy="80" r="5" fill="#0ff"/><polygon points="50,20 65,45 35,45" fill="#fff"/></svg>' },
+        { id: 'proc', text: 'PROC', icon: '<svg viewBox="0 0 100 100"><path d="M20 80 C 40 20, 80 20, 80 50" fill="none" stroke="#fff" stroke-width="6"/><polygon points="70,40 80,55 90,40" fill="#fff"/><rect x="75" y="60" width="10" height="30" fill="#f0f"/></svg>' },
+        { id: 'charts', text: 'Charts', icon: '<svg viewBox="0 0 100 100"><rect x="25" y="15" width="50" height="70" fill="none" stroke="#fff" stroke-width="6" rx="5"/><circle cx="50" cy="45" r="10" fill="#0ff"/></svg>' },
+        { id: 'sys', text: 'Aircraft<br>Systems', icon: '<svg viewBox="0 0 100 100"><circle cx="50" cy="45" r="22" fill="none" stroke="#ccc" stroke-width="8" stroke-dasharray="12, 6"/><text x="50" y="90" font-size="18" text-anchor="middle" fill="#fff" font-weight="bold">Audio</text></svg>' },
+        { id: 'check', text: 'Checklist', icon: '<svg viewBox="0 0 100 100"><rect x="25" y="15" width="50" height="70" fill="none" stroke="#fff" stroke-width="6" rx="3"/><polyline points="15,45 30,60 60,10" fill="none" stroke="#0ff" stroke-width="8"/></svg>' },
+        { id: 'serv', text: 'Services', icon: '<svg viewBox="0 0 100 100"><path d="M30 50 C30 20, 70 20, 70 50" fill="none" stroke="#fff" stroke-width="8"/><rect x="25" y="50" width="10" height="20" fill="#0ff" rx="4"/><rect x="65" y="50" width="10" height="20" fill="#0ff" rx="4"/></svg>' },
+        { id: 'util', text: 'Utilities', icon: '<svg viewBox="0 0 100 100"><line x1="20" y1="80" x2="70" y2="30" stroke="#ccc" stroke-width="8" stroke-linecap="round"/><circle cx="70" cy="30" r="12" fill="none" stroke="#ccc" stroke-width="6"/></svg>' },
+        { id: 'perf', text: 'PERF', icon: '<svg viewBox="0 0 100 100"><line x1="20" y1="10" x2="20" y2="80" stroke="#fff" stroke-width="4"/><line x1="20" y1="80" x2="90" y2="80" stroke="#fff" stroke-width="4"/><rect x="30" y="50" width="15" height="30" fill="#f0f"/><rect x="55" y="25" width="15" height="55" fill="#0ff"/></svg>' },
+        { id: 'way', text: 'Waypoint<br>Info', icon: '<svg viewBox="0 0 100 100"><polygon points="50,15 85,35 85,75 50,95 15,75 15,35" fill="none" stroke="#0ff" stroke-width="6"/><circle cx="50" cy="55" r="10" fill="#f0f"/></svg>' },
+        { id: 'near', text: 'Nearest', icon: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="8" fill="#fff"/><line x1="20" y1="20" x2="40" y2="40" stroke="#f0f" stroke-width="6"/><polygon points="30,40 45,45 40,30" fill="#f0f"/></svg>' },
+        { id: 'as565', text: 'AS-565<br>Performance', icon: '<svg viewBox="0 0 100 100"><polyline points="20,80 40,50 60,60 80,20" fill="none" stroke="#ff9800" stroke-width="6"/><circle cx="80" cy="20" r="5" fill="#ff9800"/><text x="50" y="95" font-size="16" fill="#fff" font-weight="bold" text-anchor="middle">AS565</text></svg>' }
+    ];
 
-// ══════════════════════════════════════════════════════
-// INIT
-// ══════════════════════════════════════════════════════
-let currentPage = 0;
-let leftPage = 0;
+    function switchMode(mode, target = '') {
+        currentMode = mode;
+        if(target) inputTarget = target;
+        
+        if (mode === 'PERF_INPUT') {
+            currentInput = perfData[inputTarget].toString();
+            hasStartedTyping = false; 
+        } else if (mode === 'COM_INPUT') {
+            currentInput = freqs[inputTarget].stb.replace(/\./g, '');
+            hasStartedTyping = false; 
+        } else if (mode === 'XPDR_CODE') {
+            xpdrInput = xpdrState.code;
+            hasStartedTyping = false;
+        } else if (mode === 'SELCAL_INPUT') {
+            selcalInput = selcalCode;
+            hasStartedTyping = false;
+        }
+        
+        renderContent();
+    }
 
-function setLeftPage(n) {
-  leftPage = n;
-  document.querySelectorAll('#left-tabs .page-tab').forEach((t, i) =>
-    t.classList.toggle('active', i === n));
+    function switchAudioTab(tab) {
+        audioTab = tab;
+        renderContent();
+    }
 
-  const pfdWrap  = document.getElementById('pfd-wrap');
-  const leftPanel  = document.getElementById('left-panel');
-  const rightPanel = document.getElementById('right-panel');
-  const mapWrap  = document.getElementById('map-wrap');
-  const mapTab   = document.querySelector('#page-tabs .page-tab'); // MAP tab
+    function toggleClicks() {
+        clicksState = clicksState === 'Off' ? 'On' : 'Off';
+        renderContent();
+    }
 
-  if (n === 0) {
-    // 좌측 = PFD
-    pfdWrap.classList.remove('page-hidden');
-    // map-wrap을 right-panel의 fp-wrap 앞으로 복원
-    rightPanel.insertBefore(mapWrap, document.getElementById('fp-wrap'));
-    mapWrap.classList.toggle('page-hidden', currentPage !== 0);
-    mapTab.style.display = '';
-  } else {
-    // 좌측 = MAP
-    pfdWrap.classList.add('page-hidden');
-    leftPanel.appendChild(mapWrap);
-    mapWrap.classList.remove('page-hidden');
-    mapTab.style.display = 'none';
-    if (currentPage === 0) setPage(1); // MAP 탭이 숨겨지므로 PLAN으로 전환
-  }
-  if (n === 0) {
-    // offsetHeight 읽기로 강제 리플로우 → 이후 clientWidth/Height가 정확함
-    void pfdWrap.offsetHeight;
-    resizePFD();
-  }
-  setTimeout(() => leafMap.invalidateSize(), 50);
-}
+    function setVoxMode(mode) {
+        voxState = mode;
+        renderContent();
+    }
 
-function setPage(n) {
-  currentPage = n;
-  const ids = ['map-wrap', 'fp-wrap', 'cdu-wrap'];
-  ids.forEach((id, i) => {
-    const el = document.getElementById(id);
-    // map-wrap이 left-panel에 있을 때는 건드리지 않음
-    if (id === 'map-wrap' && leftPage === 1) return;
-    el.classList.toggle('page-hidden', i !== n);
-  });
-  document.querySelectorAll('#page-tabs .page-tab').forEach((btn, i) =>
-    btn.classList.toggle('active', i === n));
-  if (n === 0 && leftPage === 0) setTimeout(() => leafMap.invalidateSize(), 50);
-}
+    // --- Modularized Render Functions ---
+    
+    function renderHomeScreen(container, footer, title, centerLabel) {
+        title.innerText = "Home";
+        centerLabel.innerText = "CDU HOME";
+        
+        let gridHtml = `<div class="home-grid">`;
+        homeButtons.forEach(btn => {
+            const links = {
+                'weather': "https://customwidgethosting.web.app/embed.html?ffCompiledSrc=https%3A%2F%2Fstorage.googleapis.com%2Fflutterflow-io-6f20.appspot.com%2Fbuild_outputs%2Fintegrated-flight-preparation-assistant-mlvjyo%2Fweb%2FQMZqWepPgY9jqDmcO2Uu%2Fmain.dart.js",
+                'charts': "https://aim.koca.go.kr/eaipPub/Package/history-en-GB.html?language=ko_KR",
+                'serv': "https://thdenfl.tistory.com",
+                'as565': "https://thdenfl-source.github.io/AS565/"
+            };
 
-// ══════════════════════════════════════════════════════
-// IFR DATABASE
-// ══════════════════════════════════════════════════════
-const IFR_FIXES = {
-  'ICN':   { lat: 37.460, lon: 126.441 },
-  'GTC':   { lat: 37.558, lon: 126.794 },
-  'BSN':   { lat: 35.179, lon: 128.938 },
-  'CHJ':   { lat: 33.511, lon: 126.493 },
-  'AROSO': { lat: 37.301, lon: 126.383 },
-  'BOPTA': { lat: 36.967, lon: 127.450 },
-  'KARPE': { lat: 37.550, lon: 127.017 },
-  'EMHIT': { lat: 37.817, lon: 127.533 },
-  'GUVEN': { lat: 37.150, lon: 127.617 },
-  'BEACK': { lat: 36.500, lon: 126.917 },
-  'IKELA': { lat: 36.667, lon: 128.333 },
-  'DOLGI': { lat: 35.533, lon: 127.833 },
-  'LAPEX': { lat: 36.167, lon: 127.833 },
-  'IGBAL': { lat: 35.817, lon: 128.717 },
-  'NUDUP': { lat: 35.333, lon: 128.533 },
-  'LAMER': { lat: 34.833, lon: 128.500 },
-  'AGAVO': { lat: 33.833, lon: 126.867 },
-  'TUKDO': { lat: 34.167, lon: 126.400 },
-};
+            let isActiveBtn = ['weather', 'charts', 'fpl', 'serv', 'sys', 'perf', 'as565'].includes(btn.id);
+            let boxClass = isActiveBtn ? 'icon-box func-active' : 'icon-box';
 
-const IFR_AIRWAYS = {
-  'G597': ['ICN','AROSO','BOPTA','GUVEN','LAPEX','DOLGI','IGBAL','BSN'],
-  'Y711': ['GTC','KARPE','EMHIT'],
-  'Y33':  ['KARPE','GUVEN','IKELA','LAPEX'],
-  'B576': ['ICN','GTC','KARPE','EMHIT'],
-  'A582': ['AROSO','BEACK','TUKDO','AGAVO','CHJ'],
-  'Y697': ['BSN','NUDUP','LAMER','CHJ'],
-};
+            if (links[btn.id]) {
+                gridHtml += `
+                    <a href="${links[btn.id]}" target="_blank" class="home-icon-wrapper" style="text-decoration:none; color:inherit;">
+                        <div class="${boxClass}">${btn.icon}</div>
+                        <div class="icon-label">${btn.text}</div>
+                    </a>`;
+            } else {
+                let clickAction = btn.id === 'sys' ? `onclick="switchMode('AUDIO'); switchAudioTab('COM');"` :
+                                  btn.id === 'perf' ? `onclick="switchMode('PERF')"` :
+                                  btn.id === 'fpl' ? `onclick="window.parent.setPage(1)"` : '';
+                gridHtml += `
+                    <div class="home-icon-wrapper" ${clickAction}>
+                        <div class="${boxClass}">${btn.icon}</div>
+                        <div class="icon-label">${btn.text}</div>
+                    </div>`;
+            }
+        });
+        gridHtml += `</div>`;
+        container.innerHTML = gridHtml;
+        footer.innerHTML = `<div class="nav-btn"><span>✔️</span>INIT</div><div class="nav-btn" onclick="switchMode('HOME')"><span>🏠</span>Home</div><div class="nav-btn"><span>✉</span>Msg</div><div class="nav-btn" onclick="switchMode('AUDIO'); switchAudioTab('COM');"><span>✥</span>Full</div>`;
+    }
 
-const IFR_DB = {
-  RKSI: {
-    name: '인천국제',
-    sids: [
-      { name:'BOPTA1A', rwy:'15L/15R', wps:[
-        {ident:'AROSO',lat:37.301,lon:126.383},
-        {ident:'BOPTA',lat:36.967,lon:127.450},
-      ]},
-      { name:'KARPE1A', rwy:'33L/33R', wps:[
-        {ident:'KARPE',lat:37.550,lon:127.017},
-        {ident:'EMHIT',lat:37.817,lon:127.533},
-      ]},
-      { name:'AGAVO1A', rwy:'15L/15R', wps:[
-        {ident:'AROSO',lat:37.301,lon:126.383},
-        {ident:'BEACK',lat:36.500,lon:126.917},
-        {ident:'AGAVO',lat:33.833,lon:126.867},
-      ]},
-    ],
-    approaches: [
-      { name:'ILS Z 15L', wps:[
-        {ident:'BOPTA',lat:36.967,lon:127.450},
-        {ident:'AROSO',lat:37.301,lon:126.383},
-        {ident:'RW15L',lat:37.4602,lon:126.4407},
-      ]},
-      { name:'ILS Z 33R', wps:[
-        {ident:'KARPE',lat:37.550,lon:127.017},
-        {ident:'RW33R',lat:37.4602,lon:126.4407},
-      ]},
-      { name:'RNAV 15L', wps:[
-        {ident:'AROSO',lat:37.301,lon:126.383},
-        {ident:'RW15L',lat:37.4602,lon:126.4407},
-      ]},
-    ],
-  },
-  RKSS: {
-    name: '김포',
-    sids: [
-      { name:'KARPE1S', rwy:'14L/14R', wps:[
-        {ident:'GTC',  lat:37.558,lon:126.794},
-        {ident:'KARPE',lat:37.550,lon:127.017},
-      ]},
-      { name:'EMHIT1S', rwy:'32L/32R', wps:[
-        {ident:'EMHIT',lat:37.817,lon:127.533},
-      ]},
-    ],
-    approaches: [
-      { name:'ILS 14L', wps:[
-        {ident:'GTC',  lat:37.558,lon:126.794},
-        {ident:'RW14L',lat:37.5583,lon:126.7942},
-      ]},
-      { name:'RNAV 32R', wps:[
-        {ident:'RW32R',lat:37.5583,lon:126.7942},
-      ]},
-    ],
-  },
-  RKPK: {
-    name: '김해',
-    sids: [
-      { name:'DOLGI1P', rwy:'18L/18R', wps:[
-        {ident:'NUDUP',lat:35.333,lon:128.533},
-        {ident:'DOLGI',lat:35.533,lon:127.833},
-      ]},
-      { name:'IGBAL1P', rwy:'36L/36R', wps:[
-        {ident:'IGBAL',lat:35.817,lon:128.717},
-      ]},
-    ],
-    approaches: [
-      { name:'ILS 36R', wps:[
-        {ident:'BSN',  lat:35.179,lon:128.938},
-        {ident:'NUDUP',lat:35.333,lon:128.533},
-        {ident:'RW36R',lat:35.1795,lon:128.9382},
-      ]},
-      { name:'VOR 18L', wps:[
-        {ident:'LAMER',lat:34.833,lon:128.500},
-        {ident:'RW18L',lat:35.1795,lon:128.9382},
-      ]},
-    ],
-  },
-  RKPC: {
-    name: '제주',
-    sids: [
-      { name:'AGAVO1C', rwy:'07/25', wps:[
-        {ident:'AGAVO',lat:33.833,lon:126.867},
-        {ident:'TUKDO',lat:34.167,lon:126.400},
-      ]},
-      { name:'TUKDO1C', rwy:'07/25', wps:[
-        {ident:'TUKDO',lat:34.167,lon:126.400},
-      ]},
-    ],
-    approaches: [
-      { name:'ILS 25', wps:[
-        {ident:'AGAVO',lat:33.833,lon:126.867},
-        {ident:'CHJ',  lat:33.511,lon:126.493},
-        {ident:'RW25', lat:33.5113,lon:126.4930},
-      ]},
-      { name:'VOR 07', wps:[
-        {ident:'TUKDO',lat:34.167,lon:126.400},
-        {ident:'CHJ',  lat:33.511,lon:126.493},
-        {ident:'RW07', lat:33.5113,lon:126.4930},
-      ]},
-    ],
-  },
-};
+    function renderPerfScreen(container, footer, title, centerLabel) {
+        calculatePerformance(); 
+        title.innerText = "Performance (Hover & Climb)";
+        centerLabel.innerText = "Flight Data";
+        
+        let warningHtml = perfResults.outOfLimits ? 
+            `<div style="background-color:#3a0000; border:1px solid #f44336; color:#f44336; font-size:9px; font-weight:bold; text-align:center; padding:3px; border-radius:3px; margin-bottom:8px; animation: blink 1.5s infinite;">⚠️ CAUTION: OUT OF CHART LIMITS (Data Capped)</div>` : '';
 
-// ══════════════════════════════════════════════════════
-// IFR PLAN CONTROLS
-// ══════════════════════════════════════════════════════
-function closeFpInput() { fpGo('LIST'); }
+        container.innerHTML = `
+            ${warningHtml}
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; padding:0 5px 5px 5px; border-bottom:1px solid #333; margin-bottom:10px;">
+                <span style="color:white; font-size:10px; font-weight:bold;">CONDITIONS</span>
+                <span style="color:white; font-size:10px; font-weight:bold;">RESULTS</span>
+            </div>
+            
+            <div style="display:flex; gap:8px; height:100%;">
+                <div style="flex:1; display:flex; flex-direction:column; gap:8px; justify-content:flex-start;">
+                    <div>
+                        <div class="perf-label">ALTITUDE (FT)</div>
+                        <div class="perf-val-box" onclick="switchMode('PERF_INPUT', 'alt')">${perfData.alt}</div>
+                    </div>
+                    <div>
+                        <div class="perf-label">TEMP (OAT °C)</div>
+                        <div class="perf-val-box" onclick="switchMode('PERF_INPUT', 'temp')">${perfData.temp}</div>
+                    </div>
+                    <div>
+                        <div class="perf-label">GROSS WT (LBS)</div>
+                        <div class="perf-val-box" onclick="switchMode('PERF_INPUT', 'weight')">${perfData.weight}</div>
+                    </div>
+                    <div>
+                        <div class="perf-label">V/S (FPM)</div>
+                        <div class="perf-val-box" onclick="switchMode('PERF_INPUT', 'vs')">${perfData.vs}</div>
+                    </div>
+                </div>
+                
+                <div style="width:1px; background:#333;"></div>
 
-function loadSids() {
-  const icao = document.getElementById('dep-icao').value;
-  const sel  = document.getElementById('dep-sid');
-  sel.innerHTML = '';
-  const db = IFR_DB[icao];
-  if (!db) return;
-  db.sids.forEach((sid, i) => {
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = sid.name + ' (' + sid.rwy + ')';
-    sel.appendChild(opt);
-  });
-}
+                <div style="flex:1.4; display:flex; flex-direction:column; justify-content:flex-start; gap: 6px;">
+                    <div style="display:flex; gap:5px;">
+                        <div style="flex:1;">
+                            <div class="perf-result-title">IGE TQ</div>
+                            <div class="perf-result-box" style="color:#0f0;">${perfResults.ige}%</div>
+                        </div>
+                        <div style="flex:1;">
+                            <div class="perf-result-title">OGE TQ</div>
+                            <div class="perf-result-box" style="color:#0f0;">${perfResults.oge}%</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:5px;">
+                        <div style="flex:1;">
+                            <div class="perf-result-title">IGE GO/NO-GO</div>
+                            <div class="perf-result-box" style="color:#ff9800;">${perfResults.ige_gonogo}%</div>
+                        </div>
+                        <div style="flex:1;">
+                            <div class="perf-result-title">OGE GO/NO-GO</div>
+                            <div class="perf-result-box" style="color:#ff9800;">${perfResults.oge_gonogo}%</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:5px;">
+                        <div style="flex:1;">
+                            <div class="perf-result-title">Vy (IAS)</div>
+                            <div class="perf-result-box" style="color:#fff;">${perfResults.vy} KT</div>
+                        </div>
+                        <div style="flex:1;">
+                            <div class="perf-result-title">V/S ∆TQ</div>
+                            <div class="perf-result-box" style="color:#fff;">${perfResults.vsTq}%</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:5px;">
+                        <div style="flex:1;">
+                            <div class="perf-result-title">MTA(30)</div>
+                            <div class="perf-result-box" style="color:var(--text-cyan); font-size:10.5px;">${perfResults.mta30}%</div>
+                        </div>
+                        <div style="flex:1;">
+                            <div class="perf-result-title">MTA(10)</div>
+                            <div class="perf-result-box" style="color:yellow; font-size:10.5px;">${perfResults.mta10}%</div>
+                        </div>
+                        <div style="flex:1;">
+                            <div class="perf-result-title">MTA(2.5)</div>
+                            <div class="perf-result-box" style="color:#f44336; font-size:10.5px;">${perfResults.mta25}%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        footer.innerHTML = `<div class="nav-btn" onclick="switchMode('HOME')"><span>↩</span>Back</div><div class="nav-btn" onclick="switchMode('HOME')"><span>🏠</span>Home</div><div class="nav-btn"><span>✉</span>Msg</div><div class="nav-btn"><span>✥</span>Full</div>`;
+    }
 
-function addSidWps() {
-  const icao   = document.getElementById('dep-icao').value;
-  const sidIdx = parseInt(document.getElementById('dep-sid').value);
-  const db     = IFR_DB[icao];
-  if (!db || isNaN(sidIdx)) return;
-  const sid = db.sids[sidIdx];
-  if (!sid) return;
-  const ap = AIRPORTS.find(a => a.ident === icao);
-  if (ap && S.wps.length === 0) pushWP({ident:ap.ident, lat:ap.lat, lon:ap.lon}, 'DEP');
-  sid.wps.forEach(wp => pushWP({ident:wp.ident, lat:wp.lat, lon:wp.lon}, 'DEP'));
-  fpGo('LIST');
-}
+    function renderPerfInputScreen(container, footer, title) {
+        let titleText = inputTarget === 'alt' ? 'ALTITUDE' : 
+                        (inputTarget === 'temp' ? 'TEMPERATURE' : 
+                        (inputTarget === 'vs' ? 'VERTICAL SPEED (FPM)' : 'GROSS WEIGHT'));
+        title.innerText = `${titleText} ENTRY`;
+        
+        let displayVal = !hasStartedTyping ? perfData[inputTarget] : currentInput;
+        if (displayVal === "") displayVal = "0";
 
-function loadAirwayFixes() {
-  const awy    = document.getElementById('enr-airway').value;
-  const fixes  = IFR_AIRWAYS[awy];
-  const entryEl = document.getElementById('enr-entry');
-  const exitEl  = document.getElementById('enr-exit');
-  entryEl.innerHTML = ''; exitEl.innerHTML = '';
-  if (!fixes) return;
-  fixes.forEach(f => {
-    const o1 = document.createElement('option'); o1.value = f; o1.textContent = f; entryEl.appendChild(o1);
-    const o2 = document.createElement('option'); o2.value = f; o2.textContent = f; exitEl.appendChild(o2);
-  });
-  if (fixes.length > 1) exitEl.selectedIndex = fixes.length - 1;
-}
+        container.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; padding-top:20px;">
+            <div class="input-row" style="margin-top:0;">
+                <div class="freq-box-main" style="width:150px;">${displayVal}</div>
+                <div class="item-btn" style="width:45px; height:45px;" onclick="backspaceInput()">⬅<br>Bksp</div>
+            </div>
+            <div class="numpad-grid" style="margin-top:10px;">
+                ${[1,2,3,4,5,6,7,8,9].map(n => `<div class="num-circle" onclick="addInput('${n}')">${n}</div>`).join('')}
+                <div class="num-circle" onclick="addInput('-')">-</div>
+                <div class="num-circle" onclick="addInput('0')">0</div>
+                <div></div>
+            </div></div>`;
+        
+        footer.innerHTML = `<div class="nav-btn" onclick="switchMode('PERF')"><span>↩</span>Cancel</div><div class="nav-btn" onclick="switchMode('HOME')"><span>🏠</span>Home</div><div class="nav-btn"><span>✉</span>Msg</div><div></div><div class="nav-btn enter-btn-blue" onclick="confirmPerfInput()"><span>↩</span>Enter</div>`;
+    }
 
-function addAirwaySegment() {
-  const awy   = document.getElementById('enr-airway').value;
-  const fixes = IFR_AIRWAYS[awy];
-  const entry = document.getElementById('enr-entry').value;
-  const exit  = document.getElementById('enr-exit').value;
-  if (!fixes) return;
-  const i1 = fixes.indexOf(entry), i2 = fixes.indexOf(exit);
-  if (i1 < 0 || i2 < 0 || i1 >= i2) return;
-  for (let i = i1; i <= i2; i++) {
-    const f = fixes[i], fix = IFR_FIXES[f];
-    if (fix) pushWP({ident:f, lat:fix.lat, lon:fix.lon}, 'ENR');
-  }
-  fpGo('LIST');
-}
+    function renderAudioScreen(container, footer, title, centerLabel) {
+        title.innerText = "Audio & Radios";
+        centerLabel.innerText = `CoPilot ${audioTab === 'Mission' ? 'VHF-FM' : (audioTab === 'Other' ? 'PA' : inputTarget.toUpperCase())} Volume`;
+        
+        let audioContent = '';
 
-function addSingleFix() {
-  const f   = document.getElementById('enr-fix').value;
-  const fix = IFR_FIXES[f];
-  if (fix) { pushWP({ident:f, lat:fix.lat, lon:fix.lon}, 'ENR'); fpGo('LIST'); }
-}
+        if (audioTab === 'COM') {
+            audioContent = `
+                <div style="display:flex; justify-content:space-between; font-size:7px; color:#888; margin-bottom:5px; padding: 0 60px 0 100px;">
+                    <span>Volume</span><span>Control</span>
+                </div>
+                ${renderAudioRow('COM1', 'com1')} 
+                ${renderAudioRow('COM2', 'com2')} 
+                ${renderAudioRow('U/VHF', 'uvhf')}
+                <div class="volume-row">
+                    <div class="item-btn">▶<br>Playback</div>
+                    <div class="wedge-slider" style="grid-column: span 2;" onpointerdown="handleVol('pb', event)">
+                        <span class="wedge-text">${volumes.pb}%</span>
+                        <div class="wedge-fill" style="width:${volumes.pb}%"></div>
+                    </div>
+                    <div style="display:flex; gap:3px;">
+                        <button class="item-btn" style="width:30px; height:35px;">|◀</button>
+                        <button class="item-btn" style="width:30px; height:35px;">▶|</button>
+                    </div>
+                </div>
+            `;
+        } 
+        else if (audioTab === 'NAV') {
+            audioContent = `
+                <div style="display:flex; justify-content:space-between; font-size:7px; color:#ccc; margin-bottom:4px; padding: 0 70px 0 80px;">
+                    <span>Volume</span><span>Control</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 60px 1fr 80px; align-items: center; margin-bottom: 7px; gap: 6px;">
+                    <div class="item-btn ${monStates.speaker?'on':''}" onclick="toggleMon('speaker')">Speaker<div class="status-line"></div></div>
+                    <div class="wedge-slider" onpointerdown="handleVol('speaker', event)">
+                        <span class="wedge-text">${volumes.speaker}%</span>
+                        <div class="wedge-fill" style="width:${volumes.speaker}%"></div>
+                    </div>
+                    <div></div>
+                </div>
+                <div style="display: grid; grid-template-columns: 60px 1fr 80px; align-items: center; margin-bottom: 7px; gap: 6px;">
+                    <div class="item-btn">▶<br>Playback</div>
+                    <div class="wedge-slider" onpointerdown="handleVol('pb', event)">
+                        <span class="wedge-text">${volumes.pb}%</span>
+                        <div class="wedge-fill" style="width:${volumes.pb}%"></div>
+                    </div>
+                    <div style="display:flex; gap:4px;">
+                        <button class="item-btn" style="flex:1; height:35px; font-size:9px;">|◀◀</button>
+                        <button class="item-btn" style="flex:1; height:35px; font-size:9px;">▶▶|</button>
+                    </div>
+                </div>
+                ${renderNavRow('NAV1', 'nav1')}
+                ${renderNavRow('NAV2', 'nav2')}
+            `;
+        }
+        else if (audioTab === 'Mission') {
+            audioContent = `
+                <div style="margin-bottom: 6px;">
+                    <div style="display:flex; justify-content:space-between; font-size:7px; color:#ccc; margin-bottom:4px; padding: 0 45px 0 130px;">
+                        <span>Volume</span><span>Control</span>
+                    </div>
+                    ${renderMissionRow('VHF-FM', 'vhffm')}
+                </div>
+                <div style="margin-bottom: 6px;">
+                    ${renderMissionRow('HF', 'hf')}
+                </div>
+                <div class="volume-row">
+                    <div class="item-btn ${monStates.selcal?'on':''}" onclick="toggleMon('selcal')">SELCAL<div class="status-line"></div></div>
+                    <div></div>
+                    <div></div>
+                    <div class="freq-display-box" style="align-items:center; justify-content:center;" onclick="switchMode('SELCAL_INPUT')">
+                        <div style="color:white; font-size:7px; margin-bottom:2px;">SELCAL ID</div>
+                        <div style="color:var(--text-cyan); font-size:11px; font-weight:bold;">${selcalCode}</div>
+                    </div>
+                </div>
+            `;
+        } 
+        else if (audioTab === 'Other') {
+            audioContent = `
+                <div style="display:flex; justify-content:space-between; font-size:7px; color:#ccc; margin-bottom:4px; padding: 0 50px 0 130px;">
+                    <span>Volume</span><span>Control</span>
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px; padding-left: 5px;">
+                    <div class="item-btn" style="width: 65px; height: 35px;" onclick="toggleClicks()">
+                        <span style="font-size: 9px; color: white;">Clicks</span>
+                        <span style="font-size: 10px; color: var(--text-cyan); font-weight: bold; margin-top: 2px;">${clicksState}</span>
+                    </div>
+                    <div class="wedge-slider" style="width: 140px; height: 30px; align-self: center;" onpointerdown="handleVol('clicks', event)">
+                        <span class="wedge-text">${volumes.clicks}%</span>
+                        <div class="wedge-fill" style="width:${volumes.clicks}%"></div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; padding-left: 5px;">
+                    <div class="item-btn ${micSelected === 'PA' ? 'on' : ''}" style="width: 65px; height: 35px;" onclick="setMic('PA')">
+                        <span style="font-size: 9px;">PA</span>
+                        <div class="status-line"></div>
+                    </div>
+                    <div style="flex: 1; background: black; border: 0.7px solid #444; border-radius: 4px; height: 35px;"></div>
+                </div>
+            `;
+        }
 
-function loadApproaches() {
-  const icao = document.getElementById('app-icao').value;
-  const sel  = document.getElementById('app-proc');
-  sel.innerHTML = '';
-  const db = IFR_DB[icao];
-  if (!db) return;
-  db.approaches.forEach((ap, i) => {
-    const opt = document.createElement('option');
-    opt.value = i; opt.textContent = ap.name;
-    sel.appendChild(opt);
-  });
-}
+        container.innerHTML = `
+            <div class="sub-header">
+                <div class="user-3d-btn" style="width:57px;">User<br><span style="color:var(--text-cyan)">Pilot</span></div>
+                <div class="tab-container">
+                    <div class="tab ${audioTab==='COM'?'active':''}" onclick="switchAudioTab('COM')">COM</div>
+                    <div class="tab ${audioTab==='NAV'?'active':''}" onclick="switchAudioTab('NAV')">NAV</div>
+                    <div class="tab ${audioTab==='Mission'?'active':''}" onclick="switchAudioTab('Mission')">Mission</div>
+                    <div class="tab ${audioTab==='Other'?'active':''}" onclick="switchAudioTab('Other')">Other</div>
+                </div>
+            </div>
+            <div class="panel-border">
+                ${audioContent}
+            </div>`;
+        footer.innerHTML = `<div class="nav-btn" onclick="switchMode('HOME')"><span>↩</span>Back</div><div class="nav-btn" onclick="switchMode('HOME')"><span>🏠</span>Home</div><div class="nav-btn"><span>✉</span>Msg</div><div class="nav-btn" style="color:var(--active-blue)"><span>✥</span>Half</div><div class="nav-btn"><span>▲</span>Up</div><div class="nav-btn"><span>▼</span>Down</div>`;
+    }
 
-function addAppWps() {
-  const icao = document.getElementById('app-icao').value;
-  const idx  = parseInt(document.getElementById('app-proc').value);
-  const db   = IFR_DB[icao];
-  if (!db || isNaN(idx)) return;
-  const app = db.approaches[idx];
-  if (!app) return;
-  app.wps.forEach(wp => pushWP({ident:wp.ident, lat:wp.lat, lon:wp.lon}, 'APP'));
-  fpGo('LIST');
-}
+    function renderIntercomScreen(container, footer, title, centerLabel) {
+        title.innerText = "Intercom";
+        centerLabel.innerText = "CoPilot ICS Volume";
+        container.innerHTML = `
+            <div class="sub-header" style="justify-content: space-between; padding-bottom:5px;">
+                <div class="user-3d-btn" style="width:60px;">User<br><span style="color:var(--text-cyan)">CoPilot</span></div>
+                <div class="wedge-slider" style="flex:1; margin:0 8px;" onpointerdown="handleVol('intercom', event)">
+                    <span class="wedge-text">${volumes.intercom}%</span>
+                    <div class="wedge-fill" style="width:${volumes.intercom}%"></div>
+                </div>
+                <div class="item-btn ${icStates.Isolate?'on':''}" style="width:45px; height:37px;" onclick="toggleIsolate()">Isolate<div class="status-line"></div></div>
+                <div class="item-btn" style="width:40px; height:37px;" onclick="switchMode('VOX_MODE')">VOX<br><span style="color:var(--text-cyan)">${voxState.toUpperCase()}</span></div>
+            </div>
+            <div class="panel-border" style="padding-top:12px;">
+                <div class="intercom-grid">
+                    <div class="item-btn ${icStates.CoPilot?'on':''}" style="height:60px;" onclick="toggleIC('CoPilot')">👨‍✈️<br>CoPilot<div class="status-line"></div></div>
+                    <div class="item-btn ${icStates.Pilot?'on':''}" style="height:60px;" onclick="toggleIC('Pilot')">Pilot<div class="status-line"></div></div>
+                    <div class="item-btn ${icStates.Crew1?'on':''}" style="height:60px;" onclick="toggleIC('Crew1')">Crew 1<div class="status-line"></div></div>
+                    <div class="item-btn ${icStates.Pass?'on':''}" style="height:60px;" onclick="toggleIC('Pass')">Pass<div class="status-line"></div></div>
+                    <div class="item-btn ${icStates.Crew2?'on':''}" style="height:60px;" onclick="toggleIC('Crew2')">Crew 2<div class="status-line"></div></div>
+                    <div class="item-btn ${icStates.wICS?'on':''}" style="height:60px;" onclick="toggleIC('wICS')">wICS<div class="status-line"></div></div>
+                </div>
+                <div class="loop-row">
+                    <div class="item-btn ${icStates.Loop1?'on':''}" style="flex:1; height:45px;" onclick="toggleIC('Loop1')">Loop 1<br>Mission Crew<div class="status-line"></div></div>
+                    <div class="item-btn ${icStates.Loop2?'on':''}" style="flex:1; height:45px;" onclick="toggleIC('Loop2')">Loop 2<br>All Pass<div class="status-line"></div></div>
+                    <div class="item-btn ${icStates.Loop5?'on':''}" style="flex:1; height:45px;" onclick="toggleIC('Loop5')">Loop 5<br>All<div class="status-line"></div></div>
+                </div>
+            </div>`;
+        footer.innerHTML = `<div class="nav-btn" onclick="switchMode('HOME')"><span>↩</span>Back</div><div class="nav-btn" onclick="switchMode('HOME')"><span>🏠</span>Home</div><div class="nav-btn"><span>✉</span>Msg</div><div class="nav-btn"><span>✥</span>Half</div>`;
+    }
 
-function init(){
-  resizePFD();
-  fpRender();
-  renderNavBox();
-  updateAcOnMap();
-  S.pit = pitchFromSpd(S.spd);
-  // Populate ICAO selector and set default
-  const icaoSel = document.getElementById('nav-icao-sel');
-  AIRPORTS.forEach(a => {
-    const opt = document.createElement('option');
-    opt.value = a.ident; opt.textContent = a.ident;
-    icaoSel.appendChild(opt);
-  });
-  if (AIRPORTS.length > 0) {
-    navIcao = AIRPORTS[0].ident;
-    navLat  = AIRPORTS[0].lat;
-    navLon  = AIRPORTS[0].lon;
-    icaoSel.value = navIcao;
-  }
-  setPage(0);
-  window.addEventListener('resize', () => { resizePFD(); if (currentPage === 0) leafMap.invalidateSize(); });
-  setTimeout(() => leafMap.invalidateSize(), 100);
-  requestAnimationFrame(simStep);
-}
-init();
+    function renderSelcalInputScreen(container, footer, title, centerLabel) {
+        title.innerText = "COM SELCAL";
+        centerLabel.innerText = "Data Entry";
+        
+        let displayVal = !hasStartedTyping ? selcalCode : selcalInput.padEnd(4, '_');
 
-// ── Service Worker 등록 (PWA 오프라인 지원) ──
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .catch(err => console.warn('SW 등록 실패:', err));
-  });
-}
+        container.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; padding-top:10px; height:100%;">
+                <div style="text-align:center; color:white; font-size:10px; font-weight:bold; margin-bottom:5px;">SELCAL ID</div>
+                <div class="input-row" style="margin-top:0; margin-bottom: 15px;">
+                    <div class="freq-box-main" style="width:140px; letter-spacing: 8px; font-size: 24px;">${displayVal}</div>
+                </div>
+                <div class="selcal-grid">
+                    ${['A','B','C','D','E', 'F','G','H','J','K', 'L','M','P','Q','R'].map(c => 
+                        `<div class="num-circle" style="width:45px; height:45px; font-size:16px;" onclick="addSelcalInput('${c}')">${c}</div>`
+                    ).join('')}
+                    <div class="item-btn" style="width:45px; height:45px;">🔍<br>Find</div>
+                    <div style="visibility:hidden"></div>
+                    <div class="num-circle" style="width:45px; height:45px; font-size:16px;" onclick="addSelcalInput('S')">S</div>
+                    <div style="visibility:hidden"></div>
+                    <div class="item-btn" style="width:45px; height:45px;" onclick="backspaceSelcal()">⬅<br>Bksp</div>
+                </div>
+            </div>
+        `;
+        footer.innerHTML = `<div class="nav-btn" onclick="switchMode('AUDIO'); switchAudioTab('Mission');"><span>↩</span>Cancel</div><div class="nav-btn" onclick="switchMode('HOME')"><span>🏠</span>Home</div><div class="nav-btn"><span>✉</span>Msg</div><div class="nav-btn"><span>✥</span>Full</div><div class="nav-btn enter-btn-blue" onclick="confirmSelcal()"><span>↩</span>Enter</div>`;
+    }
+
+    function renderVoxModeScreen(container, footer, title, centerLabel) {
+        title.innerText = "Intercom";
+        centerLabel.innerText = "VOX Mode Selection";
+
+        let isManual = (voxState === 'Manual');
+        let sliderOpacity = isManual ? '1' : '0.3';
+        let pointerEvents = isManual ? 'auto' : 'none';
+
+        container.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; padding-top:20px; height:100%; width:100%;">
+                <div style="color:white; font-size:12px; font-weight:bold; margin-bottom:15px; border-bottom:1px solid #555; width:90%; text-align:center; padding-bottom:5px;">ICS VOX MODE</div>
+                
+                <div style="display:flex; gap:10px; width:90%; justify-content:center; margin-bottom:25px;">
+                    ${['Off', 'Manual', 'Auto'].map(m => 
+                        `<div class="item-btn ${voxState === m ? 'on' : ''}" style="flex:1; height:45px; font-size:12px; font-weight:bold;" onclick="setVoxMode('${m}')">
+                            ${m.toUpperCase()}<div class="status-line"></div>
+                        </div>`
+                    ).join('')}
+                </div>
+
+                <div style="width:90%; opacity:${sliderOpacity}; pointer-events:${pointerEvents}; transition: opacity 0.3s ease;">
+                    <div style="font-size:9px; color:#ccc; margin-bottom:5px; text-align:left;">VOX SENSITIVITY (MANUAL)</div>
+                    <div class="wedge-slider" style="height:35px; border:1px solid #555; border-radius:4px; margin-bottom:10px;" onpointerdown="handleVol('vox', event)">
+                        <span class="wedge-text" style="font-size:12px; top:11px;">${volumes.vox}%</span>
+                        <div class="wedge-fill" style="width:${volumes.vox}%"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        footer.innerHTML = `<div class="nav-btn" onclick="switchMode('INTERCOM')"><span>↩</span>Back</div><div class="nav-btn" onclick="switchMode('HOME')"><span>🏠</span>Home</div><div class="nav-btn"><span>✉</span>Msg</div><div class="nav-btn"><span>✥</span>Half</div>`;
+    }
+
+    function renderHfControlScreen(container, footer, title, centerLabel) {
+        title.innerText = "HF";
+        centerLabel.innerText = "CoPilot HF1 Volume";
+        container.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:12px; height:100%; padding-top:5px;">
+                <div style="border: 1px solid var(--text-cyan); border-radius: 5px; background: #050505; display: flex; flex-direction: column; margin-bottom: 5px; padding: 5px;">
+                    <div style="position: relative; height: 45px; display: flex; justify-content: center; align-items: center;">
+                        <div style="position: absolute; top: 0; left: 5px; font-size: 9px; color: white;">Active</div>
+                        <div style="position: absolute; bottom: 0; left: 20px; font-size: 10px; color: white; font-weight: bold;">${hfState.emission}</div>
+                        <div style="font-size: 24px; color: white; font-weight: bold;">${freqs.hf.act}</div>
+                    </div>
+                    <div style="position: relative; height: 15px; display: flex; justify-content: center; align-items: center;">
+                        <div style="width: 100%; height: 1px; background: #555; position: absolute;"></div>
+                        <div style="background: #050505; padding: 0 5px; z-index: 1; color: #555; font-size: 10px;">▼</div>
+                    </div>
+                    <div style="position: relative; height: 50px; display: flex; justify-content: center; align-items: center;">
+                        <div style="position: absolute; top: -5px; left: 5px; font-size: 9px; color: white;">Standby</div>
+                        <div class="item-btn" style="width: 130px; height: 35px; border: 1px solid var(--text-cyan); background: transparent; color: var(--text-cyan); font-size: 18px; font-weight: bold; cursor: pointer;" onclick="switchMode('COM_INPUT', 'hf')">
+                            ${freqs.hf.stb}
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; margin-bottom: 2px;">
+                    <div class="item-btn" style="flex: 1; height: 45px;" onclick="toggleHfTuning()">
+                        <div style="font-size: 9px; color: white; margin-bottom: 3px;">Tuning Mode</div>
+                        <div style="font-size: 12px; color: var(--text-cyan); font-weight: bold;">${hfState.tuning}</div>
+                    </div>
+                    <div class="item-btn" style="flex: 1; height: 45px;" onclick="toggleHfEmission()">
+                        <div style="font-size: 9px; color: white; margin-bottom: 3px;">Emission Mode</div>
+                        <div style="font-size: 12px; color: var(--text-cyan); font-weight: bold;">${hfState.emission}</div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <div class="item-btn" style="width: 45px; height: 45px;">
+                        <div style="font-size: 16px; margin-bottom: 2px;">🔍</div>
+                        <div style="font-size: 8px; color: white;">Find</div>
+                    </div>
+                    <div class="item-btn" style="flex: 1; height: 45px;" onclick="toggleHfSql()">
+                        <div style="font-size: 9px; color: white; margin-bottom: 3px;">SQL LVL</div>
+                        <div style="font-size: 12px; color: var(--text-cyan); font-weight: bold;">${hfState.sql}</div>
+                    </div>
+                    <div class="item-btn" style="flex: 1; height: 45px;" onclick="toggleHfPwr()">
+                        <div style="font-size: 9px; color: white; margin-bottom: 3px;">XMIT PWR</div>
+                        <div style="font-size: 12px; color: var(--text-cyan); font-weight: bold;">${hfState.pwr}</div>
+                    </div>
+                    <div class="item-btn" style="width: 55px; height: 45px;" onclick="swapFreq('hf')">
+                        <div style="font-size: 12px; color: white; font-weight: bold;">↕ XFER</div>
+                    </div>
+                </div>
+            </div>
+        `;
+        footer.innerHTML = `<div class="nav-btn" onclick="switchMode('AUDIO')"><span>↩</span>Back</div><div class="nav-btn" onclick="switchMode('HOME')"><span>🏠</span>Home</div><div class="nav-btn"><span>✉</span>Msg</div><div class="nav-btn" style="color:var(--active-blue)"><span>✥</span>Half</div>`;
+    }
+
+    function renderComInputScreen(container, footer, title) {
+        title.innerText = `${inputTarget.toUpperCase()} Standby`;
+        
+        let displayStr = currentInput;
+        if (hasStartedTyping) {
+            if (inputTarget === 'hf' && displayStr.length > 2 && !displayStr.includes('.')) {
+                displayStr = displayStr.slice(0, 2) + '.' + displayStr.slice(2);
+            } 
+            else if (inputTarget !== 'hf' && displayStr.length > 3 && !displayStr.includes('.')) {
+                displayStr = displayStr.slice(0, 3) + '.' + displayStr.slice(3);
+            }
+        }
+        
+        let displayVal = !hasStartedTyping ? freqs[inputTarget].stb : displayStr;
+        let activeFreqHtml = '';
+        
+        if (inputTarget.startsWith('nav')) {
+            activeFreqHtml = `
+                <div style="text-align:center; color:white; font-size:10px; font-weight:bold; margin-bottom:2px;">${inputTarget.toUpperCase()}</div>
+                <div style="text-align:center; color:white; font-size:11px; margin-bottom:10px;">
+                    Active Freq: <span style="color:var(--text-green); font-weight:bold;">${freqs[inputTarget].act}</span>
+                </div>
+            `;
+        }
+
+        container.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; padding-top:10px;">
+            ${activeFreqHtml}
+            <div class="input-row" style="margin-top:0;">
+                <div class="item-btn" style="width:45px; height:45px;">🔍<br>Find</div>
+                <div class="freq-box-main">${displayVal}</div>
+                <div class="item-btn" style="width:45px; height:45px;" onclick="backspaceInput()">⬅<br>Bksp</div>
+            </div>
+            <div class="numpad-grid">
+                ${[1,2,3,4,5,6,7,8,9].map(n => `<div class="num-circle" onclick="addInput('${n}')">${n}</div>`).join('')}
+                <div></div><div class="num-circle" onclick="addInput('0')">0</div>
+                <div class="item-btn" style="height:55px; font-size:12px;" onclick="handleInputXfer()">↕ XFER</div>
+            </div></div>`;
+        
+        let backMode = inputTarget === 'hf' ? "'HF_CONTROL'" : "'AUDIO'";
+        footer.innerHTML = `<div class="nav-btn" onclick="switchMode(${backMode}, '${inputTarget}')"><span>↩</span>Back</div><div class="nav-btn" onclick="switchMode('HOME')"><span>🏠</span>Home</div><div class="nav-btn"><span>✉</span>Msg</div><div class="nav-btn"><span>✥</span>Full</div><div class="nav-btn enter-btn-blue" onclick="confirmInput()"><span>↩</span>Enter</div>`;
+    }
+
+    function renderXpdrModeScreen(container, footer, title, centerLabel) {
+        title.innerText = "Transponder";
+        centerLabel.innerText = "Transponder Mode";
+        container.innerHTML = `
+            <div style="display:flex; height:100%; padding-top:5px;">
+                <div style="flex:1; display:flex; flex-direction:column; gap:6px; border-right:1px solid #333; padding-right:10px;">
+                    <div style="color:white; font-size:10px; padding-bottom:3px; border-bottom:1px solid #555;">XPDR/TCAS Mode</div>
+                    ${['Auto', 'TA Only', 'Altitude Reporting', 'On', 'Standby'].map(m => 
+                        `<div class="item-btn ${xpdrState.mode === m ? 'on' : ''}" style="height:35px; font-size:9px;" onclick="setXpdrMode('${m}')">
+                            ${m.replace(' ', '<br>')}<div class="status-line"></div>
+                        </div>`
+                    ).join('')}
+                </div>
+                <div style="flex:1; display:flex; flex-direction:column; gap:15px; padding-left:10px; justify-content:flex-start; padding-top:20px;">
+                    <div class="item-btn" style="height:45px; font-size:10px;">Active<br><span style="color:var(--text-cyan); font-size:11px;">${xpdrState.active}</span></div>
+                    <div class="item-btn ${xpdrState.adsb ? 'on' : ''}" style="height:45px; font-size:10px;" onclick="toggleAdsb()">ADS-B TX<div class="status-line"></div></div>
+                    <div class="item-btn" style="height:45px; font-size:10px;">Flight ID<br><span style="color:var(--text-cyan); font-size:11px;">${xpdrState.flightId}</span></div>
+                </div>
+            </div>
+        `;
+        footer.innerHTML = `<div class="nav-btn" onclick="switchMode('HOME')"><span>↩</span>Back</div><div class="nav-btn" onclick="switchMode('HOME')"><span>🏠</span>Home</div><div class="nav-btn"><span>✉</span>Msg</div><div class="nav-btn"><span>✥</span>Full</div>`;
+    }
+
+    function renderXpdrCodeScreen(container, footer, title, centerLabel) {
+        title.innerText = "Transponder 2";
+        centerLabel.innerText = "Data Entry";
+        let displayVal = !hasStartedTyping ? xpdrState.code : xpdrInput;
+        container.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; padding-top:10px; height:100%;">
+                <div style="display:flex; gap:10px; margin-bottom:20px; align-items:center; width:100%; justify-content:center;">
+                    <div style="background:#0a0a0a; border:1px solid #444; width:120px; height:35px; display:flex; align-items:center; justify-content:center; color:var(--text-cyan); font-size:20px; font-weight:bold; border-radius:4px;">${displayVal}</div>
+                    <div class="item-btn" style="width:45px; height:35px;" onclick="backspaceXpdr()">←<br>BKSP</div>
+                </div>
+                <div class="xpdr-numpad-grid">
+                    ${[0,1,2,3,4,5,6,7].map(n => `<div class="num-circle" style="width:45px; height:45px;" onclick="addXpdrInput('${n}')">${n}</div>`).join('')}
+                </div>
+                <div style="display:flex; gap:10px; width:100%; justify-content:center; margin-top:10px;">
+                    <div class="item-btn" style="flex:1; height:35px; font-size:10px;" onclick="flashIdent()">IDENT</div>
+                    <div class="item-btn" style="flex:1; height:35px; font-size:10px;" onclick="setXpdrPreset('1200')">VFR</div>
+                    <div class="item-btn" style="flex:1; height:35px; font-size:10px;" onclick="setXpdrPreset('7700')">EMER</div>
+                </div>
+            </div>
+        `;
+        footer.innerHTML = `<div class="nav-btn" onclick="switchMode('XPDR_MODE')"><span>↩</span>Back</div><div class="nav-btn" onclick="switchMode('HOME')"><span>🏠</span>Home</div><div class="nav-btn"><span>✉</span>Msg</div><div class="nav-btn"><span>✥</span>Full</div><div class="nav-btn enter-btn-blue" onclick="confirmXpdr()"><span>↩</span>Enter</div>`;
+    }
+
+    // --- Main Content Renderer Route ---
+    function renderContent() {
+        const container = document.getElementById('mainContentArea');
+        const footer = document.getElementById('footerNav');
+        const title = document.getElementById('modeTitle');
+        const centerLabel = document.getElementById('center-label');
+        container.innerHTML = '';
+
+        switch(currentMode) {
+            case 'HOME': renderHomeScreen(container, footer, title, centerLabel); break;
+            case 'PERF': renderPerfScreen(container, footer, title, centerLabel); break;
+            case 'PERF_INPUT': renderPerfInputScreen(container, footer, title); break;
+            case 'AUDIO': renderAudioScreen(container, footer, title, centerLabel); break;
+            case 'INTERCOM': renderIntercomScreen(container, footer, title, centerLabel); break;
+            case 'SELCAL_INPUT': renderSelcalInputScreen(container, footer, title, centerLabel); break;
+            case 'VOX_MODE': renderVoxModeScreen(container, footer, title, centerLabel); break;
+            case 'HF_CONTROL': renderHfControlScreen(container, footer, title, centerLabel); break;
+            case 'COM_INPUT': renderComInputScreen(container, footer, title); break;
+            case 'XPDR_MODE': renderXpdrModeScreen(container, footer, title, centerLabel); break;
+            case 'XPDR_CODE': renderXpdrCodeScreen(container, footer, title, centerLabel); break;
+        }
+
+        updateHeaderUI();
+    }
+
+    // --- Render Helpers ---
+    function renderAudioRow(label, id) {
+        let isMicOn = (micSelected === label);
+        let freqBoxHTML = id === 'uvhf' 
+            ? `<div></div>` 
+            : `<div class="freq-display-box" onclick="switchMode('COM_INPUT', '${id}')">
+                <div style="color:white; font-size:10px; font-weight:bold;">${freqs[id].act}</div>
+                <div style="color:var(--text-cyan); font-size:8px;">${freqs[id].stb}</div>
+               </div>`;
+
+        return `<div class="volume-row">
+            <div class="item-btn ${monStates[id]?'on':''}" onclick="toggleMon('${id}')">${label}<div class="status-line"></div></div>
+            <div class="item-btn ${isMicOn?'on':''}" onclick="setMic('${label}')">MIC<div class="status-line"></div></div>
+            <div class="wedge-slider" onpointerdown="handleVol('${id}', event)">
+                <span class="wedge-text">${volumes[id]}%</span>
+                <div class="wedge-fill" style="width:${volumes[id]}%"></div>
+            </div>
+            ${freqBoxHTML}
+        </div>`;
+    }
+
+    function renderNavRow(label, id) {
+        return `<div style="display: grid; grid-template-columns: 60px 1fr 80px; align-items: center; margin-bottom: 7px; gap: 6px;">
+            <div class="item-btn ${monStates[id]?'on':''}" onclick="toggleMon('${id}')">${label}<div class="status-line"></div></div>
+            <div class="wedge-slider" onpointerdown="handleVol('${id}', event)">
+                <span class="wedge-text">${volumes[id]}%</span>
+                <div class="wedge-fill" style="width:${volumes[id]}%"></div>
+            </div>
+            <div class="freq-display-box" style="align-items:center; padding:0; justify-content:center; cursor:pointer;" onclick="switchMode('COM_INPUT', '${id}')">
+                <div style="display:flex; gap:4px; font-size:12px; font-weight:bold; margin-bottom:2px;">
+                    <span style="color:var(--text-green);">${freqs[id].act}</span>
+                    <span style="color:white;">${freqs[id].id}</span>
+                </div>
+                <div style="color:var(--text-cyan); font-size:12px; font-weight:bold;">${freqs[id].stb}</div>
+            </div>
+        </div>`;
+    }
+
+    function renderMissionRow(label, id) {
+        let isMicOn = (micSelected === label);
+        let rightBox = '';
+        
+        if (id === 'vhffm') {
+            rightBox = `<div style="background:black; border:0.7px solid #444; border-radius:4px; height:35px;"></div>`;
+        } else if (id === 'hf') {
+            rightBox = `<div class="freq-display-box" style="align-items:flex-start; justify-content:center; padding:2px 6px; cursor:pointer;" onclick="switchMode('HF_CONTROL')">
+                            <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                                <div style="color:white; font-size:14px; font-weight:bold;">${freqs.hf.act}</div>
+                                <div style="color:var(--text-cyan); font-size:8px; font-weight:bold; margin-top:2px;">${hfState.sql}</div>
+                            </div>
+                            <div style="color:var(--text-cyan); font-size:8px; font-weight:bold; text-align:left; margin-top:2px;">${hfState.emission}</div>
+                        </div>`;
+        }
+        
+        return `<div class="volume-row" style="margin-bottom:0;">
+            <div class="item-btn ${monStates[id]?'on':''}" onclick="toggleMon('${id}')">${label}<div class="status-line"></div></div>
+            <div class="item-btn ${isMicOn?'on':''}" onclick="setMic('${label}')">MIC<div class="status-line"></div></div>
+            <div class="wedge-slider" onpointerdown="handleVol('${id}', event)">
+                <span class="wedge-text">${volumes[id]}%</span>
+                <div class="wedge-fill" style="width:${volumes[id]}%"></div>
+            </div>
+            ${rightBox}
+        </div>`;
+    }
+
+    // --- Control Logics ---
+    function toggleHfTuning() { hfState.tuning = hfState.tuning === 'Simplex' ? 'Duplex' : 'Simplex'; renderContent(); }
+    function toggleHfEmission() {
+        const modes = ['LSB V', 'USB V', 'AM'];
+        hfState.emission = modes[(modes.indexOf(hfState.emission) + 1) % modes.length]; renderContent();
+    }
+    function toggleHfSql() {
+        const sqls = ['SQ0', 'SQ1', 'SQ2', 'SQ3'];
+        hfState.sql = sqls[(sqls.indexOf(hfState.sql) + 1) % sqls.length]; renderContent();
+    }
+    function toggleHfPwr() {
+        const pwrs = ['Low', 'Mid', 'High'];
+        hfState.pwr = pwrs[(pwrs.indexOf(hfState.pwr) + 1) % pwrs.length]; renderContent();
+    }
+
+    function setXpdrMode(m) { xpdrState.mode = m; renderContent(); }
+    function toggleAdsb() { xpdrState.adsb = !xpdrState.adsb; renderContent(); }
+    
+    function addXpdrInput(num) {
+        if (!hasStartedTyping) { xpdrInput = num; hasStartedTyping = true; }
+        else if (xpdrInput.length < 4) { xpdrInput += num; }
+        renderContent();
+    }
+    function backspaceXpdr() {
+        if (!hasStartedTyping) { hasStartedTyping = true; }
+        xpdrInput = xpdrInput.slice(0, -1); renderContent();
+    }
+    function setXpdrPreset(code) { xpdrInput = code; hasStartedTyping = true; renderContent(); }
+    function flashIdent() { renderContent(); }
+    function confirmXpdr() {
+        if(hasStartedTyping && xpdrInput.length === 4) { xpdrState.code = xpdrInput; }
+        switchMode('XPDR_MODE');
+    }
+
+    function toggleIsolate() {
+        icStates.Isolate = !icStates.Isolate;
+        if (icStates.Isolate) {
+            icStates.CoPilot = true; icStates.Pilot = true;
+            icStates.Crew1 = false; icStates.Pass = false; icStates.Crew2 = false; icStates.wICS = false;
+            icStates.Loop1 = false; icStates.Loop2 = false; icStates.Loop5 = false;
+        }
+        renderContent();
+    }
+
+    function toggleIC(name) { 
+        icStates[name] = !icStates[name]; 
+        if (name === 'Loop1' && icStates.Loop1) { icStates.Crew1 = true; icStates.Crew2 = true; icStates.Isolate = false; } 
+        else if (name === 'Loop2' && icStates.Loop2) { icStates.Pass = true; icStates.Isolate = false; } 
+        else if (name === 'Loop5' && icStates.Loop5) {
+            icStates.CoPilot = true; icStates.Pilot = true; icStates.Crew1 = true;
+            icStates.Pass = true; icStates.Crew2 = true; icStates.wICS = true;
+            icStates.Isolate = false;
+        }
+        if (['Crew1', 'Pass', 'Crew2', 'wICS'].includes(name) && icStates[name]) { icStates.Isolate = false; }
+        renderContent(); 
+    }
+
+    function setMic(label) { 
+        if (micSelected === label) { micSelected = 'OFF'; } else { micSelected = label; }
+        renderContent(); 
+    }
+    function toggleMon(id) { monStates[id] = !monStates[id]; renderContent(); }
+
+    function updateHeaderUI() {
+        const topMic = document.getElementById('top-mic-val');
+        if(topMic) {
+            if (micSelected === 'OFF' || !micSelected) { topMic.innerText = ''; } 
+            else { topMic.innerText = micSelected; }
+        }
+        
+        let monArr = [];
+        if(monStates.com1) monArr.push("1"); 
+        if(monStates.com2) monArr.push("2"); 
+        if(monStates.uvhf) monArr.push("M");
+        let monText = monArr.length ? monArr.join('/') : 'OFF';
+        if(monStates.vhffm && audioTab === 'Mission') { monText = "VHF-FM"; }
+
+        const topMon = document.getElementById('top-mon-val');
+        if(topMon) topMon.innerText = monText;
+
+        if(document.getElementById('h-com1-act')){
+            document.getElementById('h-com1-act').innerText = freqs.com1.act;
+            document.getElementById('h-com1-stb').innerText = freqs.com1.stb;
+            document.getElementById('h-com2-act').innerText = freqs.com2.act;
+            document.getElementById('h-com2-stb').innerText = freqs.com2.stb;
+        }
+
+        const xpdrModeElem = document.getElementById('top-xpdr-mode');
+        if(xpdrModeElem) {
+            let shortMode = xpdrState.mode.toUpperCase();
+            if(shortMode === 'ALTITUDE REPORTING') shortMode = 'ALT';
+            if(shortMode === 'TA ONLY') shortMode = 'TA';
+            xpdrModeElem.innerText = shortMode;
+        }
+        const xpdrCodeElem = document.getElementById('top-xpdr-code');
+        if(xpdrCodeElem) xpdrCodeElem.innerText = xpdrState.code;
+    }
+
+    function handleVol(id, e) {
+        const s = e.currentTarget;
+        s.setPointerCapture(e.pointerId);
+        const update = (pe) => {
+            const r = s.getBoundingClientRect();
+            volumes[id] = Math.round(Math.max(0, Math.min(100, (pe.clientX - r.left) / r.width * 100)));
+            s.querySelector('.wedge-fill').style.width = volumes[id] + '%';
+            if(s.querySelector('.wedge-text')) s.querySelector('.wedge-text').innerText = volumes[id] + '%';
+        };
+        update(e); s.onpointermove = update; s.onpointerup = () => s.onpointermove = null;
+    }
+
+    function swapFreq(id) { 
+        if(!freqs[id]) return;
+        [freqs[id].act, freqs[id].stb] = [freqs[id].stb, freqs[id].act];
+        renderContent();
+    }
+
+    // --- Input Handling Logic ---
+    function addInput(num) {
+        if (!hasStartedTyping) {
+            currentInput = num;
+            hasStartedTyping = true;
+        } else if (currentMode === 'PERF_INPUT') {
+            if (num === '-' && currentInput.length > 0) return;
+            if (currentInput.length < 6) currentInput += num;
+        } else if (currentInput.length < 7) {
+            currentInput += num;
+        }
+        renderContent();
+    }
+
+    function backspaceInput() {
+        if (!hasStartedTyping) {
+            hasStartedTyping = true;
+            if(currentMode === 'PERF_INPUT') currentInput = perfData[inputTarget].toString();
+        }
+        currentInput = currentInput.slice(0, -1);
+        renderContent();
+    }
+
+    function confirmPerfInput() { 
+        if (hasStartedTyping && currentInput !== "" && currentInput !== "-") {
+            perfData[inputTarget] = currentInput;
+        }
+        switchMode('PERF');
+    }
+
+    // --- SELCAL Input Logic ---
+    function addSelcalInput(char) {
+        if (!hasStartedTyping) {
+            selcalInput = "";
+            hasStartedTyping = true;
+        }
+        if (selcalInput.length >= 4) return;
+        if (selcalInput.includes(char)) return; 
+
+        if (selcalInput.length === 1 && char <= selcalInput[0]) return;
+        if (selcalInput.length === 3 && char <= selcalInput[2]) return;
+
+        selcalInput += char;
+        renderContent();
+    }
+
+    function backspaceSelcal() {
+        if (!hasStartedTyping) {
+            hasStartedTyping = true;
+            selcalInput = selcalCode;
+        }
+        selcalInput = selcalInput.slice(0, -1);
+        renderContent();
+    }
+
+    function confirmSelcal() {
+        if (hasStartedTyping && selcalInput.length === 4) {
+            selcalCode = selcalInput;
+        }
+        switchMode('AUDIO');
+        switchAudioTab('Mission');
+    }
+
+    function saveInputAndReturn() {
+        if (hasStartedTyping && currentInput.length >= 3) {
+            let v = currentInput;
+            if (inputTarget === 'hf') {
+                if (!v.includes('.') && v.length > 2) v = v.slice(0, 2) + "." + v.slice(2);
+            } else {
+                if (!v.includes('.') && v.length > 3) v = v.slice(0, 3) + "." + v.slice(3);
+            }
+            freqs[inputTarget].stb = v;
+        }
+        let backMode = inputTarget === 'hf' ? 'HF_CONTROL' : 'AUDIO';
+        switchMode(backMode, inputTarget);
+    }
+
+    function handleInputXfer() {
+        saveInputAndReturn();
+        swapFreq(inputTarget);
+    }
+
+    function confirmInput() { 
+        saveInputAndReturn();
+    }
+
+    // 초기 화면 크기 자동 조절 연동
+    window.addEventListener('resize', adjustScale);
+
+    window.onload = () => {
+        adjustScale();
+        switchMode('HOME'); 
+    };
 </script>
 </body>
 </html>
