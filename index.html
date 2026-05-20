@@ -232,6 +232,16 @@ html, body {
 .force-trim-btn:active { background: #2a2a4a; }
 .force-trim-btn.active { border-color: #cc66ff; color: #cc66ff; }
 .force-trim-btn.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+.hover-pos-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: #1a1a1a; border: 2px solid #555; color: #888;
+  font-size: 8px; font-weight: bold; cursor: pointer;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.hover-pos-btn:active { background: #2a2a1a; }
+.hover-pos-btn.active { border-color: #ffcc00; color: #ffcc00; box-shadow: 0 0 6px rgba(255,204,0,0.45); }
 
 /* ── NAV Autopilot button ── */
 .nav-ap-group { display: flex; flex-direction: column; align-items: center; gap: 2px; }
@@ -850,6 +860,7 @@ html, body {
             <button class="trim-cell tc-r"   id="trim-r"   data-trim-dir="R">►</button>
           </div>
           <button class="force-trim-btn" id="force-trim-btn" onclick="forceTrim()" title="Force Trim">FORCE<br>TRIM</button>
+          <button class="hover-pos-btn"   id="hover-pos-btn"  onclick="toggleHoverPosition()" title="Hover Position">HOVER<br>POS</button>
         </div>
 
       </div><!-- end ctrl-sub-row 3 -->
@@ -1206,6 +1217,27 @@ function forceTrim() {
   if (!gspdOn) return;
   gspdRefLat = clampLat(Math.round(gspdActLat));
   gspdRefFwd = clampFwd(Math.round(gspdActFwd));
+}
+
+// ── Hover Position marker ──
+// Captures the aircraft's world position on press. On the hover page
+// (which is aircraft-centered, body-frame, 50ft radius), this captured
+// point is drawn as a square that drifts as the aircraft moves.
+let hoverPosOn  = false;
+let hoverPosLat = null, hoverPosLon = null;
+
+function toggleHoverPosition() {
+  if (hoverPosOn) {
+    hoverPosOn  = false;
+    hoverPosLat = null;
+    hoverPosLon = null;
+  } else {
+    hoverPosOn  = true;
+    hoverPosLat = S.lat;
+    hoverPosLon = S.lon;
+  }
+  const btn = document.getElementById('hover-pos-btn');
+  if (btn) btn.classList.toggle('active', hoverPosOn);
 }
 
 // ── OBS (Omni Bearing Selector) ──
@@ -1985,6 +2017,61 @@ function drawHsiHoverPage(x, y, w, h, cx, cy, rFull) {
   // Center dot
   ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI*2);
   ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.restore();
+
+  // ── Speed vector + hover-position marker (clipped to circle) ──
+  // Hover page covers ±50 ft (body frame). Scale: 1 ft ≡ 1 kt → 50 kt = full radius.
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI*2);
+  ctx.clip();
+
+  const pxPerFt = r / 50;
+
+  // GPS speed vector — solid green, length proportional to body-frame speed
+  const vx = gspdActLat * pxPerFt;
+  const vy = -gspdActFwd * pxPerFt;
+  if (Math.hypot(vx, vy) > 0.5) {
+    ctx.strokeStyle = '#00ff88';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(vx, vy);
+    ctx.stroke();
+    // Arrowhead
+    const a = Math.atan2(vy, vx);
+    const ah = 7;
+    ctx.beginPath();
+    ctx.moveTo(vx, vy);
+    ctx.lineTo(vx - ah * Math.cos(a - Math.PI/7), vy - ah * Math.sin(a - Math.PI/7));
+    ctx.moveTo(vx, vy);
+    ctx.lineTo(vx - ah * Math.cos(a + Math.PI/7), vy - ah * Math.sin(a + Math.PI/7));
+    ctx.stroke();
+  }
+
+  // Hover-position marker — yellow square at captured world point, drawn in body frame
+  if (hoverPosOn && hoverPosLat !== null) {
+    const M_PER_DEG = 111320, FT_PER_M = 3.28084;
+    const dLatDeg = hoverPosLat - S.lat;
+    const dLonDeg = hoverPosLon - S.lon;
+    const relN_ft = dLatDeg * M_PER_DEG * FT_PER_M;
+    const relE_ft = dLonDeg * M_PER_DEG * Math.cos(S.lat * D2R) * FT_PER_M;
+    // World N/E → body (forward, right)
+    const chH = Math.cos(S.hdg * D2R), shH = Math.sin(S.hdg * D2R);
+    const bodyFwd =  relN_ft * chH + relE_ft * shH;
+    const bodyLat = -relN_ft * shH + relE_ft * chH;
+    const sqX =  bodyLat * pxPerFt;
+    const sqY = -bodyFwd * pxPerFt;
+    const sqSize = Math.max(10, r * 0.16);
+    ctx.fillStyle   = 'rgba(255,204,0,0.2)';
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.rect(sqX - sqSize/2, sqY - sqSize/2, sqSize, sqSize);
+    ctx.fill();
+    ctx.stroke();
+  }
+
   ctx.restore();
 
   // Readouts placed in the side areas (beside the now-compact circle).
