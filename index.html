@@ -1163,7 +1163,14 @@ function toggleGspd() {
     gspdRefLat = 0;
     gspdRefFwd = 0;
   } else {
-    // Disengage: clear refs so hover-page readout shows --,--
+    // Disengage: clear refs so hover-page readout shows --,--.
+    // During GSPD, S.spd was held at sqrt(fwd² + lat²) for tape display.
+    // The base motion model interprets S.spd as positive forward TAS, so
+    // handing off the magnitude would silently turn aft / pure-lateral
+    // body motion into spurious forward motion. Hand off only the forward
+    // component; aft or pure-lateral becomes a stationary state from
+    // which the pilot must accelerate again.
+    S.spd = Math.max(0, gspdActFwd);
     gspdRefLat = null;
     gspdRefFwd = null;
   }
