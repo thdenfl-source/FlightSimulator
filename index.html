@@ -1938,6 +1938,8 @@ leafMap.on('click', function(e) {
 });
 
 let trailLine = L.polyline([],{color:'#00ff88',weight:1.5,opacity:0.65}).addTo(leafMap);
+let shipTrail = [];
+let shipTrailLine = L.polyline([],{color:'#ff3333',weight:1.5,opacity:0.65}).addTo(leafMap);
 let routeLine = L.polyline([],{color:'#4488ff',weight:2,dashArray:'6 5',opacity:0.8}).addTo(leafMap);
 let crsLine   = L.polyline([],{color:'#ff00ff',weight:1.5,dashArray:'10 5',opacity:0.9}).addTo(leafMap);
 let vorCrsLine = L.polyline([],{color:'#ffaa00',weight:1.5,dashArray:'10 5',opacity:0.9}).addTo(leafMap);
@@ -1978,6 +1980,7 @@ function updateCrsLine() {
 }
 
 function updateTrail(){ trailLine.setLatLngs(S.trail.map(t=>[t[0],t[1]])); }
+function updateShipTrail(){ shipTrailLine.setLatLngs(shipTrail.map(t=>[t[0],t[1]])); }
 let mapHdgUp = false;
 function toggleMapOrient() {
   mapHdgUp = !mapHdgUp;
@@ -2505,6 +2508,12 @@ function simStep(ts){
       const [nLat, nLon] = destPoint(shipLat, shipLon, shipHdg, shipSpd * sdt / 3600);
       shipLat = nLat; shipLon = nLon;
       if (!shipDragging) shipMarker.setLatLng([shipLat, shipLon]);
+      const slast = shipTrail[shipTrail.length - 1];
+      if (!slast || distance(slast[0], slast[1], shipLat, shipLon) > 0.01) {
+        shipTrail.push([shipLat, shipLon]);
+        if (shipTrail.length > 600) shipTrail.shift();
+        updateShipTrail();
+      }
     }
   }
   S.lastT=ts;
@@ -2847,11 +2856,13 @@ function toggleShip() {
   if (shipVisible) {
     if (shipMarker) { leafMap.removeLayer(shipMarker); shipMarker = null; }
     shipVisible = false;
+    shipTrail = []; updateShipTrail();
     document.getElementById('ship-panel').style.display = 'none';
     document.getElementById('map-ship-btn').classList.remove('ship-active');
   } else {
     const c = leafMap.getCenter();
     shipLat = c.lat; shipLon = c.lng;
+    shipTrail = []; updateShipTrail();
     shipVisible = true;
     createShipMarker();
     document.getElementById('map-ship-btn').classList.add('ship-active');
@@ -2862,7 +2873,7 @@ function toggleShip() {
 function createShipMarker() {
   shipMarker = L.marker([shipLat, shipLon], { icon: shipIcon(), draggable: true, zIndexOffset: 500 }).addTo(leafMap);
   shipMarker.on('drag', e => { shipLat = e.latlng.lat; shipLon = e.latlng.lng; shipDragging = true; });
-  shipMarker.on('dragend', () => { shipDragging = false; });
+  shipMarker.on('dragend', () => { shipDragging = false; shipTrail = []; updateShipTrail(); });
   shipMarker.on('click', openShipPanel);
 }
 
