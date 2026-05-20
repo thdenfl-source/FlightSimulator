@@ -1,12 +1,11 @@
 // VFR Flight Sim — Service Worker
 // 버전을 올리면 캐시가 갱신됩니다
-const CACHE = 'vfr-flight-v1';
+const CACHE = 'vfr-flight-v5';
 const CORE  = [
   './index.html',
   './manifest.json',
   './icon.png',
   './icon-512.png',
-  './Garmin CDU/index.html',
 ];
 
 // 설치 시 핵심 파일 캐시
