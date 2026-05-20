@@ -844,10 +844,10 @@ html, body {
 
         <div class="trim-group" id="trim-group">
           <div class="trim-pad" id="trim-pad">
-            <button class="trim-cell tc-l"   id="trim-l"   onclick="gspdTrim('L')">◄</button>
-            <button class="trim-cell tc-fwd" id="trim-fwd" onclick="gspdTrim('F')">▲</button>
-            <button class="trim-cell tc-aft" id="trim-aft" onclick="gspdTrim('A')">▼</button>
-            <button class="trim-cell tc-r"   id="trim-r"   onclick="gspdTrim('R')">►</button>
+            <button class="trim-cell tc-l"   id="trim-l"   data-trim-dir="L">◄</button>
+            <button class="trim-cell tc-fwd" id="trim-fwd" data-trim-dir="F">▲</button>
+            <button class="trim-cell tc-aft" id="trim-aft" data-trim-dir="A">▼</button>
+            <button class="trim-cell tc-r"   id="trim-r"   data-trim-dir="R">►</button>
           </div>
           <button class="force-trim-btn" id="force-trim-btn" onclick="forceTrim()" title="Force Trim">FORCE<br>TRIM</button>
         </div>
@@ -1164,6 +1164,31 @@ function gspdTrim(dir) {
       gspdRefFwd = clampFwd((gspdRefFwd || 0) + (dir === 'F' ? 1 : -1));
     }
   }
+}
+
+// Pure nudge (no capture), used while a trim button is held — adds 1 kt/sec in dir.
+function gspdTrimNudge(dir) {
+  if (!gspdOn) return;
+  if (dir === 'L' || dir === 'R') {
+    gspdRefLat = clampLat((gspdRefLat || 0) + (dir === 'R' ? 1 : -1));
+  } else if (dir === 'F' || dir === 'A') {
+    gspdRefFwd = clampFwd((gspdRefFwd || 0) + (dir === 'F' ? 1 : -1));
+  }
+}
+
+// Hold-to-repeat for trim: initial tap fires gspdTrim (capture or nudge);
+// after a short delay, repeat gspdTrimNudge at 1 kt/sec while held.
+let trimHoldTimer = null, trimHoldInt = null;
+function startTrimHold(dir) {
+  if (!gspdOn) return;
+  gspdTrim(dir);
+  trimHoldTimer = setTimeout(() => {
+    trimHoldInt = setInterval(() => gspdTrimNudge(dir), 1000);
+  }, 400);
+}
+function stopTrimHold() {
+  if (trimHoldTimer) { clearTimeout(trimHoldTimer); trimHoldTimer = null; }
+  if (trimHoldInt)   { clearInterval(trimHoldInt);  trimHoldInt   = null; }
 }
 
 function forceTrim() {
@@ -2684,6 +2709,18 @@ Object.entries(btnMap).forEach(([id,[f,d]])=>{
 document.addEventListener('mouseup',stopHold);
 document.addEventListener('touchend',stopHold);
 document.addEventListener('touchcancel',stopHold);
+
+// Trim cells: hold-to-repeat (initial gspdTrim + 1 kt/sec after delay)
+['trim-l','trim-r','trim-fwd','trim-aft'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const dir = el.getAttribute('data-trim-dir');
+  el.addEventListener('mousedown',  () => startTrimHold(dir));
+  el.addEventListener('touchstart', e => { e.preventDefault(); startTrimHold(dir); }, {passive:false});
+});
+document.addEventListener('mouseup',     stopTrimHold);
+document.addEventListener('touchend',    stopTrimHold);
+document.addEventListener('touchcancel', stopTrimHold);
 
 // CRS button initial state (OBS off, FMS mode → disabled)
 updateCrsButtons();
