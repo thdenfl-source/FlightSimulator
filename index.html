@@ -184,6 +184,55 @@ html, body {
 /* ── divider ── */
 .ctrl-div { width: 1px; height: 34px; background: #2a2a2a; margin: 0 2px; }
 
+/* ── Hover Page / GSPD / Trim ── */
+.hover-group { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.hover-btns { display: flex; gap: 2px; }
+.hover-btn, .gspd-btn {
+  background: #1a1a1a; border: 1px solid #333; color: #555;
+  font-size: 10px; font-weight: bold; padding: 3px 6px; cursor: pointer; border-radius: 2px;
+  touch-action: manipulation; white-space: nowrap; font-family: 'Courier New', monospace;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.hover-btn:disabled, .gspd-btn:disabled {
+  opacity: 0.35; cursor: not-allowed;
+}
+.hover-btn.on { background: #1a0e2e; border-color: #cc66ff; color: #cc66ff; }
+.gspd-btn.on  { background: #2e0e1a; border-color: #ff6688; color: #ff8899;
+                box-shadow: 0 0 6px rgba(255,80,120,0.4); }
+
+.trim-group { display: flex; align-items: center; gap: 6px; }
+.trim-pad {
+  position: relative; width: 56px; height: 38px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1px;
+}
+.trim-cell {
+  background: #1a1a2a; border: 1px solid #333; color: #aaa;
+  font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 2px;
+  touch-action: manipulation; display: flex; align-items: center; justify-content: center;
+  user-select: none; -webkit-user-select: none;
+  transition: background 0.1s;
+}
+.trim-cell:active { background: #2a2a4a; color: #fff; }
+.trim-cell.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+.trim-cell.tc-fwd { grid-column: 2; grid-row: 1; }
+.trim-cell.tc-aft { grid-column: 2; grid-row: 2; }
+.trim-cell.tc-l   { grid-column: 1; grid-row: 1 / span 2; }
+.trim-cell.tc-r   { grid-column: 3; grid-row: 1 / span 2; }
+.force-trim-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: #1a1a1a; border: 2px solid #555; color: #888;
+  font-size: 8px; font-weight: bold; cursor: pointer;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.force-trim-btn:active { background: #2a2a4a; }
+.force-trim-btn.active { border-color: #cc66ff; color: #cc66ff; }
+.force-trim-btn.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+
 /* ── NAV Autopilot button ── */
 .nav-ap-group { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .nav-ap-btn {
@@ -754,6 +803,16 @@ html, body {
           </div>
         </div>
 
+        <div class="ctrl-div"></div>
+
+        <div class="hover-group">
+          <div class="ctrl-lbl">HOVER</div>
+          <div class="hover-btns">
+            <button class="hover-btn" id="hover-btn" onclick="toggleHoverPage()" disabled>HOVER PAGE</button>
+            <button class="gspd-btn"  id="gspd-btn"  onclick="toggleGspd()"      disabled>GSPD</button>
+          </div>
+        </div>
+
       </div><!-- end ctrl-sub-row 2 -->
 
       <!-- 3행: NAV SOURCE / RNP -->
@@ -779,6 +838,18 @@ html, body {
             <button class="rnp-btn active" id="rnp-1" onclick="setRnp(1)">1</button>
             <button class="rnp-btn" id="rnp-03" onclick="setRnp(0.3)">0.3</button>
           </div>
+        </div>
+
+        <div class="ctrl-div"></div>
+
+        <div class="trim-group" id="trim-group">
+          <div class="trim-pad" id="trim-pad">
+            <button class="trim-cell tc-l"   id="trim-l"   onclick="gspdTrim('L')">◄</button>
+            <button class="trim-cell tc-fwd" id="trim-fwd" onclick="gspdTrim('F')">▲</button>
+            <button class="trim-cell tc-aft" id="trim-aft" onclick="gspdTrim('A')">▼</button>
+            <button class="trim-cell tc-r"   id="trim-r"   onclick="gspdTrim('R')">►</button>
+          </div>
+          <button class="force-trim-btn" id="force-trim-btn" onclick="forceTrim()" title="Force Trim">FORCE<br>TRIM</button>
         </div>
 
       </div><!-- end ctrl-sub-row 3 -->
@@ -984,6 +1055,112 @@ function toggleBrg2() {
   brg2Visible = !brg2Visible;
   const btn = document.getElementById('brg2-tog');
   btn.classList.toggle('brg2-on', brg2Visible);
+}
+
+// ── Hover Page / GSPD mode ──
+// Helicopter-style hover/low-speed mode. Hover Page restyles the HSI;
+// GSPD enables a body-frame ground-speed controller that converges
+// actual lateral/forward GPS speed toward the reference at 80/15 kt/s.
+let hoverPageOn = false;
+let gspdOn      = false;
+// Body-frame ground speeds (kt). lat: + = right of nose, - = left.
+// fwd: + = forward, - = aft.
+let gspdActLat = 0, gspdActFwd = 0;
+// References (null = "--" display before GSPD engaged)
+let gspdRefLat = null, gspdRefFwd = null;
+const GSPD_RATE = 80 / 15; // kt/sec — 80kt → 0 in 15s
+
+function hoverEligible() { return S.spd < 80; }
+
+function updateHoverBtns() {
+  const hb = document.getElementById('hover-btn');
+  const gb = document.getElementById('gspd-btn');
+  if (!hb || !gb) return;
+  // Hover button: pressable when below 80kt OR already on (so user can turn off)
+  hb.disabled = !(hoverEligible() || hoverPageOn);
+  hb.classList.toggle('on', hoverPageOn);
+  // GSPD button: pressable only when hover page is on
+  gb.disabled = !hoverPageOn;
+  gb.classList.toggle('on', gspdOn);
+  // Trim cells: active only when GSPD on
+  ['trim-l','trim-r','trim-fwd','trim-aft'].forEach(id => {
+    const e = document.getElementById(id);
+    if (e) e.classList.toggle('disabled', !gspdOn);
+  });
+  const ft = document.getElementById('force-trim-btn');
+  if (ft) {
+    ft.classList.toggle('disabled', !gspdOn);
+    ft.classList.toggle('active', gspdOn);
+  }
+}
+
+function bodyFrameFromGroundVel() {
+  // Decompose current ground velocity (gsN, gsE) into body frame (fwd, right).
+  const wt  = normA(windDir + 180) * D2R;
+  const gsN = S.spd * Math.cos(S.hdg * D2R) + windSpd * Math.cos(wt);
+  const gsE = S.spd * Math.sin(S.hdg * D2R) + windSpd * Math.sin(wt);
+  const ch  = Math.cos(S.hdg * D2R), sh = Math.sin(S.hdg * D2R);
+  return {
+    fwd:  gsN * ch + gsE * sh,
+    lat: -gsN * sh + gsE * ch,
+  };
+}
+
+function toggleHoverPage() {
+  if (!hoverPageOn && !hoverEligible()) return;
+  hoverPageOn = !hoverPageOn;
+  if (hoverPageOn) {
+    // Seed actual body-frame speeds from current ground velocity
+    const bf = bodyFrameFromGroundVel();
+    gspdActLat = bf.lat;
+    gspdActFwd = bf.fwd;
+    gspdRefLat = null;
+    gspdRefFwd = null;
+  } else {
+    // Disable GSPD too
+    gspdOn = false;
+    gspdRefLat = null;
+    gspdRefFwd = null;
+  }
+  updateHoverBtns();
+}
+
+function toggleGspd() {
+  if (!hoverPageOn) return;
+  gspdOn = !gspdOn;
+  if (gspdOn) {
+    // Engage: snapshot current actual (already maintained while hover on)
+    const bf = bodyFrameFromGroundVel();
+    gspdActLat = bf.lat;
+    gspdActFwd = bf.fwd;
+    // Reference defaults to 0,0
+    gspdRefLat = 0;
+    gspdRefFwd = 0;
+  }
+  updateHoverBtns();
+}
+
+function gspdTrim(dir) {
+  if (!gspdOn) return;
+  if (dir === 'L' || dir === 'R') {
+    if (Math.abs(gspdActLat) > 0.5) {
+      gspdRefLat = Math.round(gspdActLat);
+    } else {
+      gspdRefLat = (gspdRefLat || 0) + (dir === 'R' ? 1 : -1);
+    }
+  } else if (dir === 'F' || dir === 'A') {
+    if (Math.abs(gspdActFwd) > 0.5) {
+      gspdRefFwd = Math.round(gspdActFwd);
+    } else {
+      gspdRefFwd = (gspdRefFwd || 0) + (dir === 'F' ? 1 : -1);
+    }
+  }
+}
+
+function forceTrim() {
+  if (!gspdOn) return;
+  gspdRefLat = Math.round(gspdActLat);
+  gspdRefFwd = Math.round(gspdActFwd);
 }
 
 // ── OBS (Omni Bearing Selector) ──
@@ -1444,6 +1621,12 @@ function drawHSI(x, y, w, h) {
   const cy   = y + h * 0.50;
   const arrowR = r * 0.84;
 
+  // ── Hover Page mode: simplified HSI + GPS speed readouts ──
+  if (hoverPageOn) {
+    drawHsiHoverPage(x, y, w, h, cx, cy, r);
+    return;
+  }
+
   // ── side panel widths ──
   const sideW = (w - r * 2) / 2 - 8;  // available width each side
   const leftX  = x + 4;
@@ -1733,6 +1916,86 @@ function drawHSI(x, y, w, h) {
   ctx.fillRect(crsX,y+2,bw,bh); ctx.strokeRect(crsX,y+2,bw,bh);
   ctx.fillStyle='#ccc'; ctx.font='bold 13px Courier New'; ctx.textAlign='center';
   ctx.fillText('CRS '+fmtA(activeCrs()), crsX+bw/2, y+16);
+}
+
+// ── Hover Page HSI: compact circle + GPS speed readouts ──
+function drawHsiHoverPage(x, y, w, h, cx, cy, rFull) {
+  const r = rFull * 0.7;
+
+  // Outer ring
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.beginPath(); ctx.arc(0, 0, r + 3, 0, Math.PI*2);
+  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2);
+  ctx.fillStyle = '#0f0f0f'; ctx.fill();
+  ctx.strokeStyle = '#555'; ctx.lineWidth = 1.5; ctx.stroke();
+  // Center crosshair
+  const ch = r * 0.85;
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-ch, 0); ctx.lineTo(ch, 0);
+  ctx.moveTo(0, -ch); ctx.lineTo(0, ch);
+  ctx.stroke();
+  // Center dot
+  ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI*2);
+  ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.restore();
+
+  // Readout layout: below the circle, split left/right halves
+  const baseY  = cy + r + 18;
+  const lineH  = Math.max(20, h * 0.10);
+  const valFs  = Math.max(16, h * 0.085);
+  const lblFs  = Math.max(9,  h * 0.045);
+  const leftCx  = x + (cx - x) * 0.55;
+  const rightCx = cx + (x + w - cx) * 0.45;
+
+  ctx.save();
+  ctx.textAlign = 'center';
+
+  // ── Bottom-left: actual GPS speeds (white) ──
+  // Lateral on top, fwd/aft below
+  const actLatTxt = `${Math.round(gspdActLat)}`;
+  const actFwdTxt = `${Math.round(gspdActFwd)}`;
+  ctx.font = `${lblFs}px Courier New`;
+  ctx.fillStyle = '#888';
+  ctx.fillText('LAT', leftCx, baseY);
+  ctx.font = `bold ${valFs}px Courier New`;
+  ctx.fillStyle = '#00ff88';
+  ctx.fillText(actLatTxt, leftCx, baseY + valFs);
+  ctx.font = `${lblFs}px Courier New`;
+  ctx.fillStyle = '#888';
+  ctx.fillText('FWD', leftCx, baseY + valFs + lineH);
+  ctx.font = `bold ${valFs}px Courier New`;
+  ctx.fillStyle = '#00ff88';
+  ctx.fillText(actFwdTxt, leftCx, baseY + valFs + lineH + valFs);
+
+  // ── Bottom-right: reference speeds (magenta when null/before GSPD) ──
+  const refLatTxt = gspdRefLat === null ? '--' : `${Math.round(gspdRefLat)}`;
+  const refFwdTxt = gspdRefFwd === null ? '--' : `${Math.round(gspdRefFwd)}`;
+  const refColor  = gspdOn ? '#ff66ff' : '#cc44cc';
+  ctx.font = `${lblFs}px Courier New`;
+  ctx.fillStyle = '#888';
+  ctx.fillText('REF LAT', rightCx, baseY);
+  ctx.font = `bold ${valFs}px Courier New`;
+  ctx.fillStyle = refColor;
+  ctx.fillText(refLatTxt, rightCx, baseY + valFs);
+  ctx.font = `${lblFs}px Courier New`;
+  ctx.fillStyle = '#888';
+  ctx.fillText('REF FWD', rightCx, baseY + valFs + lineH);
+  ctx.font = `bold ${valFs}px Courier New`;
+  ctx.fillStyle = refColor;
+  ctx.fillText(refFwdTxt, rightCx, baseY + valFs + lineH + valFs);
+
+  ctx.restore();
+
+  // HDG box at top center (preserve heading reference)
+  const bw = 60, bh = 20;
+  const hdgX = cx - bw/2;
+  ctx.fillStyle = '#000'; ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
+  ctx.fillRect(hdgX, y + 2, bw, bh); ctx.strokeRect(hdgX, y + 2, bw, bh);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Courier New'; ctx.textAlign = 'center';
+  ctx.fillText(fmtA(S.hdg) + '°', hdgX + bw/2, y + 16);
 }
 
 // ── HSI Side Panel helper ──
@@ -2415,6 +2678,8 @@ document.addEventListener('touchcancel',stopHold);
 
 // CRS button initial state (OBS off, FMS mode → disabled)
 updateCrsButtons();
+// Hover/GSPD/trim initial state
+updateHoverBtns();
 
 // ══════════════════════════════════════════════════════
 // SIMULATION
@@ -2451,14 +2716,44 @@ function simStep(ts){
       if(Math.abs(bankTarget-S.bnk)<0.3) S.bnk=bankTarget;
 
       if (!acDragging) {
-        // Ground velocity = TAS vector + wind vector
-        const wt = normA(windDir + 180) * D2R;
-        const gsN = S.spd * Math.cos(S.hdg * D2R) + windSpd * Math.cos(wt);
-        const gsE = S.spd * Math.sin(S.hdg * D2R) + windSpd * Math.sin(wt);
-        const sc  = 1852/3600 * dt / 111320;
+        let gsN, gsE;
+        if (gspdOn) {
+          // GSPD: converge body-frame actual toward reference at GSPD_RATE
+          const stepKt = GSPD_RATE * dt;
+          if (gspdRefLat !== null) {
+            const dLat = gspdRefLat - gspdActLat;
+            gspdActLat += Math.sign(dLat) * Math.min(Math.abs(dLat), stepKt);
+            if (Math.abs(gspdRefLat - gspdActLat) < 0.05) gspdActLat = gspdRefLat;
+          }
+          if (gspdRefFwd !== null) {
+            const dFwd = gspdRefFwd - gspdActFwd;
+            gspdActFwd += Math.sign(dFwd) * Math.min(Math.abs(dFwd), stepKt);
+            if (Math.abs(gspdRefFwd - gspdActFwd) < 0.05) gspdActFwd = gspdRefFwd;
+          }
+          // Body frame → ground frame (ignores wind; GSPD = direct ground-speed control)
+          const ch = Math.cos(S.hdg * D2R), sh = Math.sin(S.hdg * D2R);
+          gsN =  gspdActFwd * ch - gspdActLat * sh;
+          gsE =  gspdActFwd * sh + gspdActLat * ch;
+          // Keep S.spd in sync for the speed tape
+          S.spd = Math.sqrt(gspdActFwd*gspdActFwd + gspdActLat*gspdActLat);
+        } else {
+          // Ground velocity = TAS vector + wind vector
+          const wt = normA(windDir + 180) * D2R;
+          gsN = S.spd * Math.cos(S.hdg * D2R) + windSpd * Math.cos(wt);
+          gsE = S.spd * Math.sin(S.hdg * D2R) + windSpd * Math.sin(wt);
+        }
+        const sc = 1852/3600 * dt / 111320;
         S.lat += gsN * sc;
         S.lon += gsE * sc / Math.cos(S.lat * D2R);
         if (S.vs !== 0) S.alt = Math.max(0, Math.min(45000, S.alt + S.vs/60 * dt));
+
+        // Update body-frame actual readout while hover page is on (and GSPD off,
+        // since GSPD already integrates these directly)
+        if (hoverPageOn && !gspdOn) {
+          const bf = bodyFrameFromGroundVel();
+          gspdActLat = bf.lat;
+          gspdActFwd = bf.fwd;
+        }
 
         const last=S.trail[S.trail.length-1];
         if(!last||distance(last[0],last[1],S.lat,S.lon)>0.04){
@@ -2552,6 +2847,7 @@ function simStep(ts){
     }
   }
   S.lastT=ts;
+  updateHoverBtns();
   swRender();
   drawPFD();
   requestAnimationFrame(simStep);
