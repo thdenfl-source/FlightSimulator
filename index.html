@@ -1069,6 +1069,12 @@ let gspdActLat = 0, gspdActFwd = 0;
 // References (null = "--" display before GSPD engaged)
 let gspdRefLat = null, gspdRefFwd = null;
 const GSPD_RATE = 80 / 15; // kt/sec — 80kt → 0 in 15s
+// Reference speed limits (kt)
+const REF_LAT_MAX =  20;   // ±20 lateral
+const REF_FWD_MAX =  50;   // +50 forward
+const REF_FWD_MIN = -10;   // -10 aft
+const clampLat = v => Math.max(-REF_LAT_MAX, Math.min(REF_LAT_MAX, v));
+const clampFwd = v => Math.max(REF_FWD_MIN, Math.min(REF_FWD_MAX, v));
 
 function hoverEligible() { return S.spd < 80; }
 
@@ -1076,11 +1082,11 @@ function updateHoverBtns() {
   const hb = document.getElementById('hover-btn');
   const gb = document.getElementById('gspd-btn');
   if (!hb || !gb) return;
-  // Hover button: pressable when below 80kt OR already on (so user can turn off)
+  // HOVER PAGE: pressable when below 80kt OR already on (so user can turn off)
   hb.disabled = !(hoverEligible() || hoverPageOn);
   hb.classList.toggle('on', hoverPageOn);
-  // GSPD button: pressable only when hover page is on
-  gb.disabled = !hoverPageOn;
+  // GSPD: always enabled (mode-independent of HOVER PAGE)
+  gb.disabled = false;
   gb.classList.toggle('on', gspdOn);
   // Trim cells: active only when GSPD on
   ['trim-l','trim-r','trim-fwd','trim-aft'].forEach(id => {
@@ -1114,28 +1120,30 @@ function toggleHoverPage() {
     const bf = bodyFrameFromGroundVel();
     gspdActLat = bf.lat;
     gspdActFwd = bf.fwd;
-    gspdRefLat = null;
-    gspdRefFwd = null;
-  } else {
-    // Disable GSPD too
-    gspdOn = false;
-    gspdRefLat = null;
-    gspdRefFwd = null;
+    // Refs default to null only if GSPD isn't currently driving them
+    if (!gspdOn) {
+      gspdRefLat = null;
+      gspdRefFwd = null;
+    }
   }
+  // Off-branch: keep GSPD state intact (independent modes)
   updateHoverBtns();
 }
 
 function toggleGspd() {
-  if (!hoverPageOn) return;
   gspdOn = !gspdOn;
   if (gspdOn) {
-    // Engage: snapshot current actual (already maintained while hover on)
+    // Engage: snapshot current actual ground velocity in body frame
     const bf = bodyFrameFromGroundVel();
     gspdActLat = bf.lat;
     gspdActFwd = bf.fwd;
-    // Reference defaults to 0,0
+    // References default to 0,0 (clamped, though 0 is within range)
     gspdRefLat = 0;
     gspdRefFwd = 0;
+  } else {
+    // Disengage: clear refs so hover-page readout shows --,--
+    gspdRefLat = null;
+    gspdRefFwd = null;
   }
   updateHoverBtns();
 }
@@ -1144,23 +1152,24 @@ function gspdTrim(dir) {
   if (!gspdOn) return;
   if (dir === 'L' || dir === 'R') {
     if (Math.abs(gspdActLat) > 0.5) {
-      gspdRefLat = Math.round(gspdActLat);
+      // Capture actual to ref (clamped to limit, e.g. actual=25 → ref=20)
+      gspdRefLat = clampLat(Math.round(gspdActLat));
     } else {
-      gspdRefLat = (gspdRefLat || 0) + (dir === 'R' ? 1 : -1);
+      gspdRefLat = clampLat((gspdRefLat || 0) + (dir === 'R' ? 1 : -1));
     }
   } else if (dir === 'F' || dir === 'A') {
     if (Math.abs(gspdActFwd) > 0.5) {
-      gspdRefFwd = Math.round(gspdActFwd);
+      gspdRefFwd = clampFwd(Math.round(gspdActFwd));
     } else {
-      gspdRefFwd = (gspdRefFwd || 0) + (dir === 'F' ? 1 : -1);
+      gspdRefFwd = clampFwd((gspdRefFwd || 0) + (dir === 'F' ? 1 : -1));
     }
   }
 }
 
 function forceTrim() {
   if (!gspdOn) return;
-  gspdRefLat = Math.round(gspdActLat);
-  gspdRefFwd = Math.round(gspdActFwd);
+  gspdRefLat = clampLat(Math.round(gspdActLat));
+  gspdRefFwd = clampFwd(Math.round(gspdActFwd));
 }
 
 // ── OBS (Omni Bearing Selector) ──
@@ -1942,19 +1951,19 @@ function drawHsiHoverPage(x, y, w, h, cx, cy, rFull) {
   ctx.fillStyle = '#fff'; ctx.fill();
   ctx.restore();
 
-  // Readout layout: below the circle, split left/right halves
-  const baseY  = cy + r + 18;
-  const lineH  = Math.max(20, h * 0.10);
-  const valFs  = Math.max(16, h * 0.085);
-  const lblFs  = Math.max(9,  h * 0.045);
-  const leftCx  = x + (cx - x) * 0.55;
-  const rightCx = cx + (x + w - cx) * 0.45;
+  // Readouts placed in the side areas (beside the now-compact circle).
+  // Use the lower vertical band so they read as "left-bottom" / "right-bottom".
+  const valFs  = Math.max(14, h * 0.08);
+  const lblFs  = Math.max(8,  h * 0.045);
+  const rowGap = Math.max(4,  h * 0.025);
+  const baseY  = y + h * 0.50;   // start in lower-half band beside circle
+  const leftCx  = (x + (cx - r)) / 2;          // mid of left side area
+  const rightCx = (cx + r + (x + w)) / 2;      // mid of right side area
 
   ctx.save();
   ctx.textAlign = 'center';
 
-  // ── Bottom-left: actual GPS speeds (white) ──
-  // Lateral on top, fwd/aft below
+  // ── Bottom-left: actual GPS speeds ──
   const actLatTxt = `${Math.round(gspdActLat)}`;
   const actFwdTxt = `${Math.round(gspdActFwd)}`;
   ctx.font = `${lblFs}px Courier New`;
@@ -1965,10 +1974,10 @@ function drawHsiHoverPage(x, y, w, h, cx, cy, rFull) {
   ctx.fillText(actLatTxt, leftCx, baseY + valFs);
   ctx.font = `${lblFs}px Courier New`;
   ctx.fillStyle = '#888';
-  ctx.fillText('FWD', leftCx, baseY + valFs + lineH);
+  ctx.fillText('FWD', leftCx, baseY + valFs + rowGap + lblFs);
   ctx.font = `bold ${valFs}px Courier New`;
   ctx.fillStyle = '#00ff88';
-  ctx.fillText(actFwdTxt, leftCx, baseY + valFs + lineH + valFs);
+  ctx.fillText(actFwdTxt, leftCx, baseY + valFs + rowGap + lblFs + valFs);
 
   // ── Bottom-right: reference speeds (magenta when null/before GSPD) ──
   const refLatTxt = gspdRefLat === null ? '--' : `${Math.round(gspdRefLat)}`;
@@ -1982,10 +1991,10 @@ function drawHsiHoverPage(x, y, w, h, cx, cy, rFull) {
   ctx.fillText(refLatTxt, rightCx, baseY + valFs);
   ctx.font = `${lblFs}px Courier New`;
   ctx.fillStyle = '#888';
-  ctx.fillText('REF FWD', rightCx, baseY + valFs + lineH);
+  ctx.fillText('REF FWD', rightCx, baseY + valFs + rowGap + lblFs);
   ctx.font = `bold ${valFs}px Courier New`;
   ctx.fillStyle = refColor;
-  ctx.fillText(refFwdTxt, rightCx, baseY + valFs + lineH + valFs);
+  ctx.fillText(refFwdTxt, rightCx, baseY + valFs + rowGap + lblFs + valFs);
 
   ctx.restore();
 
