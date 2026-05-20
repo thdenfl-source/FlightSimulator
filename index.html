@@ -1483,12 +1483,12 @@ function drawHSI(x, y, w, h) {
     });
   }
 
-  // ── Wind display (between BRG1 panel and compass circle) ──
+  // ── Wind display (HSI top-left) ──
   {
     const wdirFmt = String(Math.round(windDir)).padStart(3,'0');
     const wspdFmt = String(Math.round(windSpd)).padStart(2,'0');
     const wdX = leftX + sideW / 2;
-    const wdY = y + h * 0.80;
+    const wdY = y + h * 0.10;
     const fs  = Math.max(9, r * 0.105);
     ctx.save();
     ctx.font = `bold ${fs}px Courier New`;
@@ -1510,6 +1510,41 @@ function drawHSI(x, y, w, h) {
     ctx.lineTo(wdX + ax + Math.sin(ba + 0.45)*hs, wdY + ay - Math.cos(ba + 0.45)*hs);
     ctx.lineTo(wdX + ax + Math.sin(ba - 0.45)*hs, wdY + ay - Math.cos(ba - 0.45)*hs);
     ctx.closePath(); ctx.fillStyle = '#ffffff'; ctx.fill();
+    ctx.restore();
+  }
+
+  // ── GS / TAS readout (HSI bottom-left) ──
+  {
+    // TAS: altitude-corrected from displayed speed (~+2% per 1000 ft)
+    const tas = S.spd * (1 + 0.02 * S.alt / 1000);
+    // GS: TAS vector + wind vector (wind blows TO direction = windDir + 180)
+    const wto = normA(windDir + 180) * D2R;
+    const gsN = tas * Math.cos(S.hdg * D2R) + windSpd * Math.cos(wto);
+    const gsE = tas * Math.sin(S.hdg * D2R) + windSpd * Math.sin(wto);
+    const gs  = Math.sqrt(gsN*gsN + gsE*gsE);
+
+    const colX  = leftX + sideW / 2;
+    const valFs = Math.max(11, r * 0.13);
+    const lblFs = Math.max(8, r * 0.085);
+    const gsY   = y + h * 0.78;
+    const tasY  = y + h * 0.92;
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    // GS
+    ctx.font = `${lblFs}px Courier New`;
+    ctx.fillStyle = '#888';
+    ctx.fillText('GS', colX, gsY);
+    ctx.font = `bold ${valFs}px Courier New`;
+    ctx.fillStyle = '#00cc44';
+    ctx.fillText(`${Math.round(gs)}kt`, colX, gsY + valFs);
+    // TAS
+    ctx.font = `${lblFs}px Courier New`;
+    ctx.fillStyle = '#888';
+    ctx.fillText('TAS', colX, tasY);
+    ctx.font = `bold ${valFs}px Courier New`;
+    ctx.fillStyle = '#88ccff';
+    ctx.fillText(`${Math.round(tas)}kt`, colX, tasY + valFs);
     ctx.restore();
   }
 
