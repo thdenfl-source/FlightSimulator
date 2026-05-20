@@ -1068,7 +1068,18 @@ let gspdOn      = false;
 let gspdActLat = 0, gspdActFwd = 0;
 // References (null = "--" display before GSPD engaged)
 let gspdRefLat = null, gspdRefFwd = null;
-const GSPD_RATE = 80 / 15; // kt/sec — 80kt → 0 in 15s
+const GSPD_RATE = 80 / 15; // kt/sec — 80kt → 0 in 15s at high speed
+// Speed-dependent slew rate so the last few kt arrive smoothly at ~1 kt/sec.
+// |actual| ≤ 5 → 1 kt/s; |actual| ≥ 15 → GSPD_RATE; linear in between.
+const GSPD_RATE_SLOW = 1.0;
+const GSPD_BAND_SLOW = 5;
+const GSPD_BAND_FAST = 15;
+function gspdSlewRate(actual) {
+  const a = Math.abs(actual);
+  if (a <= GSPD_BAND_SLOW) return GSPD_RATE_SLOW;
+  if (a >= GSPD_BAND_FAST) return GSPD_RATE;
+  return GSPD_RATE_SLOW + (a - GSPD_BAND_SLOW) / (GSPD_BAND_FAST - GSPD_BAND_SLOW) * (GSPD_RATE - GSPD_RATE_SLOW);
+}
 // Reference speed limits (kt)
 const REF_LAT_MAX =  20;   // ±20 lateral
 const REF_FWD_MAX =  50;   // +50 forward
@@ -2106,8 +2117,16 @@ function makeAircraftIcon(hdg) {
   return L.divIcon({
     html:`<div class="ac-marker" style="transform:rotate(${hdg}deg);transform-origin:12px 12px;">
       <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="12,2 9,12 3,14 3,16 10.5,14.5 10.5,20 8.5,21 8.5,22 12,21 15.5,22 15.5,21 13.5,20 13.5,14.5 21,16 21,14 15,12"
-          fill="#00ff88" stroke="#003322" stroke-width="0.8"/>
+        <!-- Main rotor disk -->
+        <circle cx="12" cy="12" r="9" fill="none" stroke="#00ff88" stroke-width="0.7" stroke-dasharray="2 1.5" opacity="0.55"/>
+        <!-- Fuselage (forward of mast) -->
+        <ellipse cx="12" cy="11" rx="2.8" ry="4.4" fill="#00ff88" stroke="#003322" stroke-width="0.7"/>
+        <!-- Cockpit dot at nose -->
+        <circle cx="12" cy="8" r="1" fill="#003322"/>
+        <!-- Tail boom -->
+        <rect x="11.3" y="14" width="1.4" height="7" fill="#00ff88" stroke="#003322" stroke-width="0.5"/>
+        <!-- Tail rotor -->
+        <line x1="9" y1="21" x2="15" y2="21" stroke="#00ff88" stroke-width="1.6" stroke-linecap="round"/>
       </svg></div>`,
     iconSize:[24,24],iconAnchor:[12,12],className:'',
   });
@@ -2764,16 +2783,19 @@ function simStep(ts){
       if (!acDragging) {
         let gsN, gsE;
         if (gspdOn) {
-          // GSPD: converge body-frame actual toward reference at GSPD_RATE
-          const stepKt = GSPD_RATE * dt;
+          // GSPD: converge body-frame actual toward reference.
+          // Rate is scaled by current actual speed magnitude so that
+          // the last few kt slew at ~1 kt/sec for a smooth arrival.
           if (gspdRefLat !== null) {
             const dLat = gspdRefLat - gspdActLat;
-            gspdActLat += Math.sign(dLat) * Math.min(Math.abs(dLat), stepKt);
+            const rLat = gspdSlewRate(gspdActLat);
+            gspdActLat += Math.sign(dLat) * Math.min(Math.abs(dLat), rLat * dt);
             if (Math.abs(gspdRefLat - gspdActLat) < 0.05) gspdActLat = gspdRefLat;
           }
           if (gspdRefFwd !== null) {
             const dFwd = gspdRefFwd - gspdActFwd;
-            gspdActFwd += Math.sign(dFwd) * Math.min(Math.abs(dFwd), stepKt);
+            const rFwd = gspdSlewRate(gspdActFwd);
+            gspdActFwd += Math.sign(dFwd) * Math.min(Math.abs(dFwd), rFwd * dt);
             if (Math.abs(gspdRefFwd - gspdActFwd) < 0.05) gspdActFwd = gspdRefFwd;
           }
           // Body frame → ground frame (ignores wind; GSPD = direct ground-speed control)
