@@ -16,21 +16,20 @@
 
         body {
             background-color: #222;
-            display: flex; justify-content: center; align-items: center;
-            height: 100vh; margin: 0; font-family: 'Arial', sans-serif; color: white;
-            user-select: none; touch-action: manipulation;
-            padding: 0;
+            margin: 0; padding: 0;
+            width: 354px; height: 567px;
             overflow: hidden;
+            font-family: 'Arial', sans-serif; color: white;
+            user-select: none; touch-action: manipulation;
         }
 
-        .cdu-frame { 
+        .cdu-frame {
             width: 354px;
-            height: 567px; 
-            background-color: #111; padding: 8px; border-radius: 12px; border: 3px solid #000; 
+            height: 567px;
+            box-sizing: border-box;
+            background-color: #111; padding: 8px; border-radius: 12px; border: 3px solid #000;
             display: flex; flex-direction: column;
             box-shadow: 0 13px 33px rgba(0,0,0,0.9);
-            transform-origin: center; 
-            flex-shrink: 0;
         }
         
         .touch-display { background-color: var(--bg-dark);
@@ -222,18 +221,6 @@
 </div>
 
 <script>
-    // --- Responsive Auto-Scaling Logic ---
-    function adjustScale() {
-        const frame = document.querySelector('.cdu-frame');
-        const frameNativeW = 354, frameNativeH = 567;
-        const scaleW = window.innerWidth  / frameNativeW;
-        const scaleH = window.innerHeight / frameNativeH;
-        const scale  = Math.min(scaleW, scaleH);
-        frame.style.transform       = `scale(${scale})`;
-        frame.style.transformOrigin = 'center center';
-    }
-    window.addEventListener('resize', adjustScale);
-
     // --- State Variables ---
     let currentMode = 'HOME';
     let audioTab = 'COM'; 
@@ -1316,13 +1303,7 @@
         saveInputAndReturn();
     }
 
-    // 초기 화면 크기 자동 조절 연동
-    window.addEventListener('resize', adjustScale);
-
-    window.onload = () => {
-        adjustScale();
-        switchMode('HOME'); 
-    };
+    window.onload = () => { switchMode('HOME'); };
 </script>
 </body>
 </html>
