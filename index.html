@@ -1074,6 +1074,11 @@ function toggleBrg2() {
 // actual lateral/forward GPS speed toward the reference at 80/15 kt/s.
 let hoverPageOn = false;
 let gspdOn      = false;
+// Coast state: body-frame motion is preserved after disengage when the
+// velocity has components the base motion model can't represent (any
+// lateral, or aft / negative forward). Convergence is off; body
+// velocity stays constant until the next engagement.
+let gspdCoasting = false;
 // Body-frame ground speeds (kt). lat: + = right of nose, - = left.
 // fwd: + = forward, - = aft.
 let gspdActLat = 0, gspdActFwd = 0;
@@ -1155,22 +1160,32 @@ function toggleHoverPage() {
 function toggleGspd() {
   gspdOn = !gspdOn;
   if (gspdOn) {
-    // Engage: snapshot current actual ground velocity in body frame
-    const bf = bodyFrameFromGroundVel();
-    gspdActLat = bf.lat;
-    gspdActFwd = bf.fwd;
-    // References default to 0,0 (clamped, though 0 is within range)
+    // Engage. Seed actuals from current ground velocity, unless we are
+    // emerging from a coast — in that case the actuals are already the
+    // truth-of-record for body-frame motion.
+    if (!gspdCoasting) {
+      const bf = bodyFrameFromGroundVel();
+      gspdActLat = bf.lat;
+      gspdActFwd = bf.fwd;
+    }
+    // References default to 0,0; the slew loop will decelerate.
     gspdRefLat = 0;
     gspdRefFwd = 0;
+    gspdCoasting = false;
   } else {
-    // Disengage: clear refs so hover-page readout shows --,--.
-    // During GSPD, S.spd was held at sqrt(fwd² + lat²) for tape display.
-    // The base motion model interprets S.spd as positive forward TAS, so
-    // handing off the magnitude would silently turn aft / pure-lateral
-    // body motion into spurious forward motion. Hand off only the forward
-    // component; aft or pure-lateral becomes a stationary state from
-    // which the pilot must accelerate again.
-    S.spd = Math.max(0, gspdActFwd);
+    // Disengage. The base model can only represent positive forward TAS.
+    // - Pure forward (or zero): hand off cleanly via S.spd.
+    // - Any lateral or any aft component: enter coasting. Body-frame
+    //   integration keeps running at constant velocity until the next
+    //   engagement, so the lateral/aft case decelerates gradually on
+    //   re-engage exactly like the forward-only case (which survives a
+    //   disengage via the base model).
+    if (Math.abs(gspdActLat) > 0.5 || gspdActFwd < 0) {
+      gspdCoasting = true;
+    } else {
+      S.spd = Math.max(0, gspdActFwd);
+      gspdCoasting = false;
+    }
     gspdRefLat = null;
     gspdRefFwd = null;
   }
@@ -2876,28 +2891,39 @@ function simStep(ts){
 
       if (!acDragging) {
         let gsN, gsE;
-        if (gspdOn) {
-          // GSPD: converge body-frame actual toward reference.
-          // Rate is scaled by current actual speed magnitude so that
-          // the last few kt slew at ~1 kt/sec for a smooth arrival.
-          if (gspdRefLat !== null) {
-            const dLat = gspdRefLat - gspdActLat;
-            const rLat = gspdSlewRate(gspdActLat);
-            gspdActLat += Math.sign(dLat) * Math.min(Math.abs(dLat), rLat * dt);
-            if (Math.abs(gspdRefLat - gspdActLat) < 0.05) gspdActLat = gspdRefLat;
+        if (gspdOn || gspdCoasting) {
+          // Body-frame motion. Convergence runs only while GSPD is
+          // engaged; in coasting state we keep integrating at constant
+          // body velocity until the next engagement.
+          if (gspdOn) {
+            // Rate is scaled by current actual speed magnitude so that
+            // the last few kt slew at ~1 kt/sec for a smooth arrival.
+            if (gspdRefLat !== null) {
+              const dLat = gspdRefLat - gspdActLat;
+              const rLat = gspdSlewRate(gspdActLat);
+              gspdActLat += Math.sign(dLat) * Math.min(Math.abs(dLat), rLat * dt);
+              if (Math.abs(gspdRefLat - gspdActLat) < 0.05) gspdActLat = gspdRefLat;
+            }
+            if (gspdRefFwd !== null) {
+              const dFwd = gspdRefFwd - gspdActFwd;
+              const rFwd = gspdSlewRate(gspdActFwd);
+              gspdActFwd += Math.sign(dFwd) * Math.min(Math.abs(dFwd), rFwd * dt);
+              if (Math.abs(gspdRefFwd - gspdActFwd) < 0.05) gspdActFwd = gspdRefFwd;
+            }
           }
-          if (gspdRefFwd !== null) {
-            const dFwd = gspdRefFwd - gspdActFwd;
-            const rFwd = gspdSlewRate(gspdActFwd);
-            gspdActFwd += Math.sign(dFwd) * Math.min(Math.abs(dFwd), rFwd * dt);
-            if (Math.abs(gspdRefFwd - gspdActFwd) < 0.05) gspdActFwd = gspdRefFwd;
-          }
-          // Body frame → ground frame (ignores wind; GSPD = direct ground-speed control)
+          // Body frame → ground frame (ignores wind; this is direct
+          // ground-speed control)
           const ch = Math.cos(S.hdg * D2R), sh = Math.sin(S.hdg * D2R);
           gsN =  gspdActFwd * ch - gspdActLat * sh;
           gsE =  gspdActFwd * sh + gspdActLat * ch;
           // Keep S.spd in sync for the speed tape
           S.spd = Math.sqrt(gspdActFwd*gspdActFwd + gspdActLat*gspdActLat);
+          // Exit coasting once motion is representable in the base model
+          // (no lateral, no aft). Hand off forward component to S.spd.
+          if (gspdCoasting && Math.abs(gspdActLat) < 0.5 && gspdActFwd >= 0) {
+            gspdCoasting = false;
+            S.spd = Math.max(0, gspdActFwd);
+          }
         } else {
           // Ground velocity = TAS vector + wind vector
           const wt = normA(windDir + 180) * D2R;
@@ -2909,9 +2935,11 @@ function simStep(ts){
         S.lon += gsE * sc / Math.cos(S.lat * D2R);
         if (S.vs !== 0) S.alt = Math.max(0, Math.min(45000, S.alt + S.vs/60 * dt));
 
-        // Update body-frame actual readout while hover page is on (and GSPD off,
-        // since GSPD already integrates these directly)
-        if (hoverPageOn && !gspdOn) {
+        // Update body-frame actual readout while hover page is on. Skip when
+        // GSPD is engaged or coasting — both already integrate the body
+        // velocity directly; overwriting from ground-vel would erase the
+        // lateral/aft components (which the base model can't represent).
+        if (hoverPageOn && !gspdOn && !gspdCoasting) {
           const bf = bodyFrameFromGroundVel();
           gspdActLat = bf.lat;
           gspdActFwd = bf.fwd;
